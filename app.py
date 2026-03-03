@@ -178,32 +178,44 @@ def _report_dialog():
 # ============================================================
 # Dialog de compartilhamento
 # ============================================================
+def _get_app_url() -> str:
+    """Retorna a URL publica do app (Cloud ou tunnel)."""
+    # 1. Streamlit Cloud: monta a partir de headers/context
+    _is_cloud = "STREAMLIT_SHARING_MODE" in os.environ or "HOSTNAME" in os.environ
+    if _is_cloud:
+        try:
+            headers = st.context.headers
+            host = headers.get("Host", "")
+            if host:
+                return f"https://{host}"
+        except Exception:
+            pass
+
+    # 2. Tunnel local (launch_public.py salva em .tunnel_url)
+    _tunnel_file = _PROJECT_DIR / ".tunnel_url"
+    if _tunnel_file.exists():
+        url = _tunnel_file.read_text(encoding="utf-8").strip()
+        if url:
+            return url
+
+    return ""
+
+
 @st.dialog("Compartilhar Link")
 def _share_dialog():
-    # Detecta se esta rodando no Streamlit Cloud
-    _is_cloud = "STREAMLIT_SHARING_MODE" in os.environ or "HOSTNAME" in os.environ
+    public_url = _get_app_url()
 
-    if _is_cloud:
-        st.markdown(
-            '<p style="color:#828294;font-size:0.85rem;margin-bottom:0.8rem;">'
-            'Copie a URL da barra do navegador e envie para quem quiser acessar o HUB:</p>',
-            unsafe_allow_html=True,
-        )
-        st.info("O app esta online 24/7. Basta compartilhar o link da barra de endereco.")
-    else:
-        _tunnel_file = _PROJECT_DIR / ".tunnel_url"
-        public_url = _tunnel_file.read_text(encoding="utf-8").strip() if _tunnel_file.exists() else ""
-
-        if not public_url:
-            st.warning("Nenhum link publico ativo. Inicie com `python launch_public.py`.")
-            return
-
+    if public_url:
         st.markdown(
             '<p style="color:#828294;font-size:0.85rem;margin-bottom:0.8rem;">'
             'Envie este link para qualquer pessoa acessar o HUB:</p>',
             unsafe_allow_html=True,
         )
         st.code(public_url, language=None)
+        st.info("O app esta online 24/7. Basta compartilhar o link acima.")
+    else:
+        st.warning("Nenhum link publico ativo. No Streamlit Cloud o link aparece automaticamente. "
+                    "Localmente, inicie com `python launch_public.py`.")
 
     st.markdown(
         '<p style="font-size:0.75rem;color:#828294;margin-top:0.5rem;">'

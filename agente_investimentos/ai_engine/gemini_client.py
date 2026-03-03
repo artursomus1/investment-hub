@@ -22,6 +22,7 @@ from agente_investimentos.ai_engine.prompts import (
     build_news_impact_prompt,
     build_migration_prompt,
     build_daily_summary_prompt,
+    build_period_summary_prompt,
 )
 
 _cache = CacheManager()
@@ -294,20 +295,26 @@ def analyze_migration_ai(
     return "[ERRO] Recomendações de migração indisponíveis. Verifique o console para detalhes."
 
 
-def analyze_daily_summary_ai(news_articles: list) -> str:
-    """Gera resumo diario das notícias focado em Geopolítica, AI e Economia.
+def analyze_period_summary_ai(news_articles: list, period: str = "diario") -> str:
+    """Gera resumo por periodo das noticias focado em Geopolitica, AI e Economia.
 
     Args:
-        news_articles: Lista de notícias (título, categoria, fonte, data)
+        news_articles: Lista de noticias (titulo, categoria, fonte, data)
+        period: "diario" | "semanal" | "mensal"
 
     Returns:
-        Texto com resumo em 3 seções
+        Texto com resumo em 3 secoes
     """
     if not news_articles:
-        return "[ERRO] Nenhuma noticia disponível para resumo."
-    prompt = build_daily_summary_prompt(news_articles)
-    print(f"[Gemini] Daily summary: {len(news_articles)} notícias, prompt ~{len(prompt)} chars")
+        return "[ERRO] Nenhuma noticia disponivel para resumo."
+    prompt = build_period_summary_prompt(news_articles, period)
+    print(f"[Gemini] {period.capitalize()} summary: {len(news_articles)} noticias, prompt ~{len(prompt)} chars")
     result = _generate(prompt)
     if result:
         return result
-    return "[ERRO] Resumo diario indisponível. Verifique o console para detalhes."
+    return f"[ERRO] Resumo {period} indisponivel. Verifique o console para detalhes."
+
+
+def analyze_daily_summary_ai(news_articles: list) -> str:
+    """Gera resumo diario (wrapper retrocompativel para analyze_period_summary_ai)."""
+    return analyze_period_summary_ai(news_articles, "diario")

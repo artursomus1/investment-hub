@@ -683,28 +683,35 @@ NOTICIAS RECENTES (de diversas fontes):
 Forneça uma análise de impacto DETALHADA com EXATAMENTE 5 seções:
 
 **1. PANORAMA GERAL**
-- Resuma o cenario atual em 3-5 frases, conectando as principais notícias ao momento economico
-- Destaque tendencias relevantes para investidores
+Organize o cenario atual por TEMAS:
+- **Geopolitica**: eventos internacionais que afetam mercados (cite noticias especificas)
+- **Economia Global**: movimentos em juros, cambio, commodities no exterior
+- **Economia Domestica**: SELIC, IPCA, fiscal, PIB, emprego no Brasil
+- **Setorial**: eventos que afetam setores especificos presentes na carteira
+Conecte cada tema as noticias analisadas. 5-8 frases no total.
 
 **2. ATIVOS EM RISCO**
 - Liste os ativos da carteira que podem ser NEGATIVAMENTE impactados pelas notícias
-- Para cada ativo: ticker, motivo, nivel de risco (ALTO/MEDIO/BAIXO), noticia relacionada
+- Para cada ativo: ticker, motivo, nivel de risco (ALTO/MEDIO/BAIXO)
+- OBRIGATORIO: cite a noticia especifica que gera o risco (ex: "Conforme noticia '[titulo]'...")
 - Se nenhum ativo estiver em risco, diga explicitamente
 
 **3. ATIVOS FAVORECIDOS**
 - Liste os ativos da carteira que podem ser POSITIVAMENTE impactados
-- Para cada ativo: ticker, motivo, potencial (ALTO/MEDIO/BAIXO), noticia relacionada
+- Para cada ativo: ticker, motivo, potencial (ALTO/MEDIO/BAIXO)
+- OBRIGATORIO: cite a noticia especifica que favorece o ativo (ex: "Conforme noticia '[titulo]'...")
 - Se nenhum for favorecido, diga explicitamente
 
 **4. AÇÕES RECOMENDADAS**
 - 3-5 ações concretas que o assessor deveria considerar com base nas notícias
-- Cada acao com justificativa e urgencia (ALTA/MEDIA/BAIXA)
+- Para cada acao: descricao, justificativa, urgencia (ALTA/MEDIA/BAIXA), horizonte temporal (IMEDIATO/CURTO PRAZO/MEDIO PRAZO)
+- OBRIGATORIO: vincule cada acao a uma noticia ou tendencia identificada no panorama
 
 **5. RESUMO EXECUTIVO**
 - 3-5 frases finais sintetizando o impacto geral das notícias na carteira
 - Tom: profissional, objetivo, sem alarmismo
 
-Seja objetivo, use dados concretos. Correlacione notícias especificas com ativos especificos quando possível."""
+Seja objetivo, use dados concretos. Correlacione notícias especificas com ativos especificos. Cite titulos de noticias quando relevante."""
 
 
 # ============================================================
@@ -764,14 +771,18 @@ def build_migration_prompt(
     ativos_text = "\n".join(ativos_lines)
 
     impact_block = ""
+    risk_instruction = ""
     if news_impact_text:
-        truncated = news_impact_text[:1500]
+        truncated = news_impact_text[:2500]
         impact_block = f"""
 CONTEXTO ADICIONAL - IMPACTO DAS NOTICIAS:
 {truncated}
 """
+        risk_instruction = "IMPORTANTE: Todos os riscos identificados na análise de impacto acima DEVEM ter uma estrategia de mitigacao correspondente na secao 3."
+    else:
+        risk_instruction = "Sem contexto de noticias disponivel. Foque em riscos estruturais da carteira: concentracao excessiva, volatilidade alta, alavancagem, baixa diversificacao."
 
-    return f"""Você e um consultor de investimentos senior brasileiro especializado em alocacao de ativos e rebalanceamento de carteiras. Análise a carteira e faça recomendações de MIGRACAO e REBALANCEAMENTO. Escreva em portugues.
+    return f"""Você e um consultor de investimentos senior brasileiro especializado em alocacao de ativos e rebalanceamento de carteiras. Análise a carteira e faça recomendações de MIGRACAO, MITIGACAO DE RISCOS e REBALANCEAMENTO. Escreva em portugues.
 
 CARTEIRA:
 - Patrimônio total: R$ {portfolio_analysis['total_bruto']:,.2f}
@@ -794,7 +805,9 @@ CENARIO MACRO:
 ATIVOS (com indicadores):
 {ativos_text}
 {impact_block}
-Forneça recomendações de migração com EXATAMENTE 4 seções:
+{risk_instruction}
+
+Forneça recomendações com EXATAMENTE 5 seções:
 
 **1. DIAGNOSTICO DA ALOCACAO**
 - Avalie a distribuição atual por tipo e setor
@@ -806,11 +819,19 @@ Forneça recomendações de migração com EXATAMENTE 4 seções:
 - Para cada: ativo de ORIGEM -> tipo de ativo de DESTINO sugerido, justificativa, urgencia (ALTA/MEDIA/BAIXA)
 - Foque em: reduzir concentração, melhorar diversificacao, otimizar retorno/risco
 
-**3. TABELA RESUMO POR ATIVO**
+**3. ESTRATEGIAS DE MITIGACAO**
+Para cada risco identificado (do impacto das noticias OU riscos estruturais da carteira):
+- **Risco**: descricao clara do risco
+- **Como mitigar**: acao concreta para reduzir/eliminar o risco
+- **Ativos afetados**: quais tickers sao impactados
+- **Urgencia**: ALTA / MEDIA / BAIXA
+Liste pelo menos 3-5 estrategias de mitigacao. Priorize riscos de maior urgencia.
+
+**4. TABELA RESUMO POR ATIVO**
 Para CADA ativo da carteira:
 - Ticker | Acao (MANTER/MIGRAR/REDUZIR/AUMENTAR) | Destino sugerido | Justificativa | Prioridade
 
-**4. ALOCACAO ALVO SUGERIDA**
+**5. ALOCACAO ALVO SUGERIDA**
 - Distribuição ideal por tipo (%) considerando o cenario macro atual
 - Distribuição ideal por setor (%) se aplicavel
 - Justifique brevemente a alocacao sugerida
@@ -823,29 +844,76 @@ Seja pratico e objetivo. Considere custos de transação e tributação ao recom
 # ============================================================
 
 def build_daily_summary_prompt(news_articles: list) -> str:
-    """Prompt para resumo diario focado em Geopolítica, AI e Economia."""
+    """Prompt para resumo diario focado em Geopolítica, AI e Economia.
+
+    Mantido para retrocompatibilidade. Internamente usa build_period_summary_prompt().
+    """
+    return build_period_summary_prompt(news_articles, "diario")
+
+
+def build_period_summary_prompt(news_articles: list, period: str = "diario") -> str:
+    """Prompt para resumo por periodo focado em Geopolítica, AI e Economia.
+
+    Args:
+        news_articles: Lista de noticias (titulo, categoria, fonte, data)
+        period: "diario" | "semanal" | "mensal"
+    """
+    # Limites por periodo
+    config = {
+        "diario": {
+            "limit": 40,
+            "label": "DIARIO",
+            "header": "NOTICIAS DO DIA",
+            "geo_frases": "3-4 frases",
+            "ai_frases": "3-4 frases",
+            "eco_frases": "3-4 frases",
+            "instrucao_extra": "Seja direto, objetivo e use linguagem profissional. Não use emojis. Cada secao deve ter 3-4 frases densas e informativas.",
+        },
+        "semanal": {
+            "limit": 50,
+            "label": "SEMANAL",
+            "header": "NOTICIAS DA SEMANA",
+            "geo_frases": "5-6 frases",
+            "ai_frases": "5-6 frases",
+            "eco_frases": "5-6 frases",
+            "instrucao_extra": "Identifique TENDENCIAS da semana — o que se repetiu, o que mudou de direcao, o que ganhou forca. Conecte eventos entre si quando possivel. Cada secao deve ter 5-6 frases densas e analiticas.",
+        },
+        "mensal": {
+            "limit": 60,
+            "label": "MENSAL",
+            "header": "NOTICIAS DO MES",
+            "geo_frases": "6-8 frases",
+            "ai_frases": "6-8 frases",
+            "eco_frases": "6-8 frases",
+            "instrucao_extra": "Foque em MOVIMENTOS ESTRUTURAIS e mudancas de ciclo. Identifique tendencias macro que persistiram ao longo do mes. Analise implicacoes de medio/longo prazo para investidores. Cada secao deve ter 6-8 frases com visao macro e analitica.",
+        },
+    }
+
+    cfg = config.get(period, config["diario"])
+
     news_lines = []
-    for n in news_articles[:40]:
+    for n in news_articles[:cfg["limit"]]:
         cat = n.get("categoria", "")
         fonte = n.get("fonte", "")
         título = n.get("título", "")
         news_lines.append(f"  - [{cat}] {título} ({fonte})")
     news_text = "\n".join(news_lines) if news_lines else "Nenhuma noticia disponível."
 
-    return f"""Você e um analista senior de mercado financeiro brasileiro. Com base nas notícias abaixo, escreva um RESUMO DIARIO conciso e profissional em portugues.
+    return f"""Você e um analista senior de mercado financeiro brasileiro. Com base nas notícias abaixo, escreva um RESUMO {cfg['label']} conciso e profissional em portugues.
 
-NOTICIAS DO DIA:
+{cfg['header']}:
 {news_text}
 
 Estruture o resumo em EXATAMENTE 3 seções com os títulos abaixo (use exatamente este formato):
 
 **GEOPOLITICA**
-Resuma em 3-4 frases os principais eventos geopolíticos que podem afetar mercados e investimentos. Inclua tensoes internacionais, acordos comerciais, política externa, conflitos, sanções. Se não houver notícias geopolíticas relevantes, mencione o cenario global atual brevemente.
+Resuma em {cfg['geo_frases']} os principais eventos geopolíticos que podem afetar mercados e investimentos. Inclua tensoes internacionais, acordos comerciais, política externa, conflitos, sanções. Se não houver notícias geopolíticas relevantes, mencione o cenario global atual brevemente.
 
 **INTELIGENCIA ARTIFICIAL**
-Resuma em 3-4 frases os avancos, regulações e impactos de IA nos mercados. Inclua lançamentos de modelos, regulações, impacto em setores, empresas de tecnologia. Se não houver notícias de IA, comente brevemente o panorama atual do setor.
+Resuma em {cfg['ai_frases']} os avancos, regulações e impactos de IA nos mercados. Inclua lançamentos de modelos, regulações, impacto em setores, empresas de tecnologia. Se não houver notícias de IA, comente brevemente o panorama atual do setor.
 
 **ECONOMIA**
-Resuma em 3-4 frases o cenario economico brasileiro e global. Inclua dados de inflacao, juros, cambio, PIB, emprego, política fiscal/monetaria. Foque no que e mais relevante para investidores.
+Resuma em {cfg['eco_frases']} o cenario economico brasileiro e global. Inclua dados de inflacao, juros, cambio, PIB, emprego, política fiscal/monetaria. Foque no que e mais relevante para investidores.
 
-Seja direto, objetivo e use linguagem profissional. Não use emojis. Cada secao deve ter 3-4 frases densas e informativas."""
+{cfg['instrucao_extra']}
+Não use emojis. Use linguagem profissional."""

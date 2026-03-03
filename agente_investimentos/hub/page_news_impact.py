@@ -1,6 +1,7 @@
 """Página de Impacto das Notícias na Carteira."""
 
 import re
+from collections import defaultdict
 
 import streamlit as st
 
@@ -8,6 +9,7 @@ from agente_investimentos.ai_engine.gemini_client import analyze_news_impact_ai
 from agente_investimentos.data_sources.market_news_scraper import fetch_broad_news, get_all_news_flat
 from agente_investimentos.dashboard.session_persistence import ensure_session_state, save_impact_text
 from agente_investimentos.hub.components import render_hero_header, render_footer, format_brl
+from agente_investimentos.utils.formatters import parse_news_date
 
 
 # Configuração visual de cada secao de impacto
@@ -147,6 +149,29 @@ def render():
 
     st.divider()
 
+    # Expander com manchetes recentes por categoria
+    with st.expander(f"Manchetes Recentes ({len(all_news)} noticias)", expanded=False):
+        # Agrupar por categoria
+        by_cat = defaultdict(list)
+        for n in all_news:
+            cat = n.get("categoria", "Geral")
+            by_cat[cat].append(n)
+
+        for cat, articles in sorted(by_cat.items()):
+            st.markdown(f"**{cat}** ({len(articles)} noticias)")
+            for a in articles[:8]:
+                fonte = a.get("fonte", "")
+                data_str = a.get("data", "")
+                dt = parse_news_date(data_str)
+                data_fmt = dt.strftime("%d/%m %H:%M") if dt else ""
+                meta = f" - {fonte}" if fonte else ""
+                if data_fmt:
+                    meta += f" ({data_fmt})"
+                st.markdown(f"- {a.get('título', '')}{meta}")
+            if len(articles) > 8:
+                st.caption(f"... e mais {len(articles) - 8} noticias de {cat}")
+            st.markdown("---")
+
     # Botao para gerar análise
     col_btn, col_info = st.columns([1, 3])
     with col_btn:
@@ -178,6 +203,10 @@ def render():
     if impact_text and not impact_text.startswith("[ERRO]"):
         st.divider()
         _render_impact_analysis(impact_text)
+        st.info(
+            "Para ver estrategias de mitigacao e rebalanceamento baseadas nesta analise, "
+            "acesse a pagina **Migracao** no menu lateral."
+        )
 
     render_footer()
 

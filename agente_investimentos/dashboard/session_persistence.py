@@ -18,6 +18,8 @@ _RESULT_FILE = _SESSION_DIR / "last_result.pkl"
 _IMPACT_FILE = _SESSION_DIR / "news_impact_text.txt"
 _MIGRATION_FILE = _SESSION_DIR / "migration_text.txt"
 _DAILY_SUMMARY_FILE = _SESSION_DIR / "daily_summary_text.txt"
+_WEEKLY_SUMMARY_FILE = _SESSION_DIR / "weekly_summary_text.txt"
+_MONTHLY_SUMMARY_FILE = _SESSION_DIR / "monthly_summary_text.txt"
 
 
 # === Result (pickle) ===
@@ -100,6 +102,44 @@ def load_daily_summary_text() -> Optional[str]:
         return None
 
 
+def save_weekly_summary_text(text: str) -> None:
+    """Salva texto do resumo semanal."""
+    try:
+        _WEEKLY_SUMMARY_FILE.write_text(text, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def load_weekly_summary_text() -> Optional[str]:
+    """Carrega texto do resumo semanal."""
+    if not _WEEKLY_SUMMARY_FILE.exists():
+        return None
+    try:
+        text = _WEEKLY_SUMMARY_FILE.read_text(encoding="utf-8")
+        return text if text.strip() else None
+    except Exception:
+        return None
+
+
+def save_monthly_summary_text(text: str) -> None:
+    """Salva texto do resumo mensal."""
+    try:
+        _MONTHLY_SUMMARY_FILE.write_text(text, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def load_monthly_summary_text() -> Optional[str]:
+    """Carrega texto do resumo mensal."""
+    if not _MONTHLY_SUMMARY_FILE.exists():
+        return None
+    try:
+        text = _MONTHLY_SUMMARY_FILE.read_text(encoding="utf-8")
+        return text if text.strip() else None
+    except Exception:
+        return None
+
+
 def ensure_session_state() -> None:
     """Garante que session_state tem os dados da última análise.
 
@@ -125,3 +165,21 @@ def ensure_session_state() -> None:
         saved = load_migration_text()
         if saved:
             st.session_state["migration_text"] = saved
+
+    # daily_summary_text
+    if not st.session_state.get("daily_summary_text"):
+        saved = load_daily_summary_text()
+        if saved:
+            st.session_state["daily_summary_text"] = saved
+
+    # weekly_summary_text
+    if not st.session_state.get("weekly_summary_text"):
+        saved = load_weekly_summary_text()
+        if saved:
+            st.session_state["weekly_summary_text"] = saved
+
+    # monthly_summary_text
+    if not st.session_state.get("monthly_summary_text"):
+        saved = load_monthly_summary_text()
+        if saved:
+            st.session_state["monthly_summary_text"] = saved

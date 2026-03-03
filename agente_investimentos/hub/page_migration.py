@@ -1,5 +1,7 @@
 """Página de Recomendações de Migração/Rebalanceamento."""
 
+import re
+
 import streamlit as st
 
 from agente_investimentos.ai_engine.gemini_client import analyze_migration_ai
@@ -10,7 +12,10 @@ from agente_investimentos.hub.components import format_brl, render_hero_header, 
 def render():
     """Renderiza a página de recomendações de migração."""
     ensure_session_state()
-    render_hero_header("Recomendações de Migração", "Sugestoes de rebalanceamento e migração de ativos via IA")
+    render_hero_header(
+        "Estrategias de Mitigacao e Migracao",
+        "Mitigacao de riscos, rebalanceamento e migracao de ativos via IA",
+    )
 
     # Verifica se tem carteira carregada
     result = st.session_state.get("last_result")
@@ -32,25 +37,28 @@ def render():
 
     st.divider()
 
-    # Opcao de usar contexto de impacto de notícias
+    # Banner de contexto de impacto — sem checkbox, usa automaticamente se disponível
     news_impact_text = st.session_state.get("news_impact_text", "")
-    use_impact = False
     if news_impact_text:
-        use_impact = st.checkbox(
-            "Usar análise de impacto das notícias como contexto adicional",
-            value=True,
-            help="Inclui o resultado da análise de impacto para recomendações mais contextualizadas",
+        st.success(
+            "Contexto de impacto das noticias **integrado** automaticamente. "
+            "Os riscos identificados serao usados para gerar estrategias de mitigacao."
+        )
+    else:
+        st.warning(
+            "Nenhuma analise de impacto disponivel. Recomendamos executar a analise em "
+            "**Impacto das Noticias** primeiro para resultados mais completos. "
+            "Voce pode gerar mesmo assim — o foco sera em riscos estruturais da carteira."
         )
 
     # Botao para gerar
-    if st.button("Gerar Recomendações de Migração", type="primary", use_container_width=False):
-        impact_ctx = news_impact_text if use_impact else ""
-        with st.spinner("Gerando recomendações de migração via Gemini..."):
+    if st.button("Gerar Estrategias de Mitigacao e Migracao", type="primary", use_container_width=False):
+        with st.spinner("Gerando estrategias de mitigacao e migracao via Gemini..."):
             migration_text = analyze_migration_ai(
                 portfolio_analysis=portfolio_analysis,
                 asset_analyses=asset_analyses,
                 macro=macro,
-                news_impact_text=impact_ctx,
+                news_impact_text=news_impact_text,
             )
             if migration_text.startswith("[ERRO]"):
                 st.error(migration_text.replace("[ERRO] ", ""))
@@ -99,16 +107,32 @@ def _render_current_allocation(pa: dict):
             st.info("Dados setoriais não disponíveis.")
 
 
+def _is_mitigation_section(title: str) -> bool:
+    """Verifica se a secao e de mitigacao."""
+    t = title.lower()
+    return "mitigac" in t or "mitigaç" in t
+
+
 def _render_migration_analysis(text: str):
     """Renderiza as recomendações de migração formatadas."""
-    import re
-
     sections = _split_migration_sections(text)
 
     if len(sections) >= 2:
         for title, content in sections:
-            with st.expander(title, expanded=True):
+            if _is_mitigation_section(title):
+                # Destaque visual para secao de mitigacao
+                st.markdown(
+                    f'<div style="border-left: 4px solid #e74c3c; padding: 0.5rem 1rem; '
+                    f'background-color: rgba(231,76,60,0.05); border-radius: 4px; margin-bottom: 1rem;">'
+                    f'<h4 style="color: #e74c3c; margin-top: 0;">&#9888; {title}</h4>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
                 st.markdown(content)
+                st.divider()
+            else:
+                with st.expander(title, expanded=True):
+                    st.markdown(content)
     else:
         st.markdown(text)
 

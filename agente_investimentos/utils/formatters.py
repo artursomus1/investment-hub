@@ -1,6 +1,8 @@
 """Formatadores para valores financeiros brasileiros."""
 
 import re
+from datetime import datetime
+from typing import Optional
 
 # Mapeamento de caracteres Unicode -> ASCII para FPDF2 (Helvetica/latin-1)
 _UNICODE_MAP = {
@@ -68,6 +70,26 @@ def format_millions(value: float) -> str:
 def parse_percent_str(value: str) -> float:
     """Converte string de percentual BR (-1,23%) para float (-1.23)."""
     return parse_br_number(value)
+
+
+def parse_news_date(date_str: str) -> Optional[datetime]:
+    """Parseia data de RSS (formato RFC 2822, ISO 8601, etc).
+
+    Usada por page_news.py e page_news_impact.py para filtrar noticias por data.
+    """
+    if not date_str:
+        return None
+    for fmt in (
+        "%a, %d %b %Y %H:%M:%S %Z",
+        "%a, %d %b %Y %H:%M:%S %z",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%d",
+    ):
+        try:
+            return datetime.strptime(date_str.strip(), fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def extract_client_code(filename: str) -> str:
