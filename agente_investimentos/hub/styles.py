@@ -54,6 +54,8 @@ HUB_CSS = f"""
         height: 36px;
         width: auto;
         display: block;
+        /* Logo branca -> verde Somus #004d33 via CSS filter */
+        filter: brightness(0) saturate(100%) invert(20%) sepia(95%) saturate(600%) hue-rotate(130deg) brightness(70%);
     }}
 
     /* ===================================================
@@ -190,6 +192,8 @@ HUB_CSS = f"""
         margin: 0 auto;
         display: block;
         transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Logo branca -> verde Somus #004d33 */
+        filter: brightness(0) saturate(100%) invert(20%) sepia(95%) saturate(600%) hue-rotate(130deg) brightness(70%);
     }}
 
     section[data-testid="stSidebar"]:hover .sidebar-brand-area .sidebar-logo {{
@@ -1006,6 +1010,8 @@ HUB_CSS = f"""
         height: 72px;
         width: auto;
         margin-bottom: 1.5rem;
+        /* Logo branca -> verde Somus #004d33 */
+        filter: brightness(0) saturate(100%) invert(20%) sepia(95%) saturate(600%) hue-rotate(130deg) brightness(70%);
     }}
 
     .login-title {{
