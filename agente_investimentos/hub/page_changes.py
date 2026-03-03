@@ -204,10 +204,24 @@ def _render_history():
             cols[2].markdown(f"**{rec.ticker}**")
             cols[3].markdown(f"**{rec.acao}**")
             cols[4].markdown(f"R$ {rec.valor:,.2f}")
-            cols[5].markdown(rec.motivacao[:60] + ("..." if len(rec.motivacao) > 60 else ""))
+            if rec.motivacao:
+                with cols[5].expander("Ver motivacao", expanded=False):
+                    st.markdown(rec.motivacao)
+            else:
+                cols[5].markdown("—")
 
             if cols[6].button("X", key=f"del_{rec.change_id}", help="Excluir registro"):
-                delete_change(rec.change_id)
-                st.rerun()
+                st.session_state[f"confirm_del_{rec.change_id}"] = True
+
+            if st.session_state.get(f"confirm_del_{rec.change_id}"):
+                st.warning(f"Confirma exclusao do registro **{rec.ticker}** ({rec.acao}) de {rec.data_mudanca}?")
+                cc1, cc2, _ = st.columns([1, 1, 4])
+                if cc1.button("Sim, excluir", key=f"yes_del_{rec.change_id}", type="primary"):
+                    delete_change(rec.change_id)
+                    st.session_state.pop(f"confirm_del_{rec.change_id}", None)
+                    st.rerun()
+                if cc2.button("Cancelar", key=f"no_del_{rec.change_id}"):
+                    st.session_state.pop(f"confirm_del_{rec.change_id}", None)
+                    st.rerun()
 
             st.divider()

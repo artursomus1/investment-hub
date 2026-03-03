@@ -7,6 +7,7 @@ import streamlit as st
 
 from agente_investimentos.ai_engine.gemini_client import analyze_period_summary_ai
 from agente_investimentos.dashboard.session_persistence import (
+    ensure_session_state,
     save_daily_summary_text, load_daily_summary_text,
     save_weekly_summary_text, load_weekly_summary_text,
     save_monthly_summary_text, load_monthly_summary_text,
@@ -118,6 +119,7 @@ def _render_filter_bar(news_data: dict):
             "Periodo",
             options=["Todas", "Hoje", "Ultimas 24h", "Últimos 3 dias", "Ultima semana"],
             label_visibility="collapsed",
+            help="Todas: sem filtro | Hoje: ultimas 24h | 3 dias: 72h | Semana: 7 dias",
         )
 
     with col3:
@@ -139,6 +141,7 @@ def _render_filter_bar(news_data: dict):
 
 def render():
     """Renderiza a página de notícias."""
+    ensure_session_state()
     render_hero_header("Portal de Notícias", "Notícias do mercado em tempo real via Google News")
 
     # Busca notícias (usa cache se disponível)
@@ -149,6 +152,7 @@ def render():
     with st.spinner("Carregando notícias..."):
         news_data = fetch_broad_news(force_refresh=force)
         st.session_state["news_data"] = news_data
+        st.session_state["news_loaded_at"] = datetime.now().strftime("%H:%M")
 
     if not news_data:
         render_empty_state("Nenhuma noticia encontrada. Tente atualizar.")
@@ -197,6 +201,12 @@ def render():
                 )
                 for article in filtered:
                     render_news_card(article)
+
+    loaded_at = st.session_state.get("news_loaded_at", "")
+    if loaded_at:
+        st.caption(f"Ultima atualizacao: {loaded_at}")
+
+    st.caption("Acesse **Impacto** para ver como as noticias afetam sua carteira")
 
     render_footer()
 

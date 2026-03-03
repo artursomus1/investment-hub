@@ -6,7 +6,7 @@ from pathlib import Path
 from agente_investimentos.config import PASTA_PDFS
 from agente_investimentos.dashboard.run_history import save_run
 from agente_investimentos.dashboard.session_persistence import save_last_result
-from agente_investimentos.hub.components import render_hero_header, render_footer
+from agente_investimentos.hub.components import render_hero_header, render_empty_state, render_footer
 
 
 PHASE_TITLES = {
@@ -32,6 +32,8 @@ def render():
     """Renderiza a página de análise de carteira."""
     render_hero_header("Análise de Carteira", "Faça upload ou selecione um PDF para iniciar a análise automatizada")
 
+    st.caption("1. Upload → 2. Dashboard → 3. Impacto → 4. Migracao")
+
     # Tabs: Upload ou Selecionar existente
     tab_upload, tab_select = st.tabs(["Upload de PDF", "PDFs Existentes"])
 
@@ -53,7 +55,7 @@ def render():
     with tab_select:
         pdfs = _list_pdfs()
         if not pdfs:
-            st.info(f"Nenhum PDF encontrado em: {PASTA_PDFS}")
+            render_empty_state(f"Nenhum PDF encontrado em: {PASTA_PDFS}", icon="&#128196;")
         else:
             selected_pdf_from_list = st.selectbox(
                 "Selecione o PDF",
@@ -64,7 +66,7 @@ def render():
                 selected_pdf = selected_pdf_from_list
 
     if not selected_pdf:
-        st.info("Selecione ou faça upload de um PDF para continuar.")
+        render_empty_state("Selecione ou faça upload de um PDF para continuar.", icon="&#128196;")
         return
 
     st.divider()
@@ -199,7 +201,7 @@ def _execute_analysis(pdf_path: Path, reports: list):
         # Persiste em disco para sobreviver a refresh/reinicio
         save_last_result(result)
 
-        st.info("Acesse **Dashboard** ou **Impacto das Notícias** no menu lateral.")
+        st.success("Proximo passo: acesse **Dashboard** para ver KPIs e graficos, ou **Impacto** para cruzar noticias com a carteira.")
 
     except Exception as e:
         st.error(f"Erro na execução: {e}")

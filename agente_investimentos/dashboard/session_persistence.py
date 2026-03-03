@@ -5,7 +5,10 @@ garantindo que Dashboard, Impacto e Migração sempre tenham dados
 mesmo após refresh do browser ou reinicio do Streamlit.
 """
 
+import json
 import pickle
+import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -15,11 +18,59 @@ _SESSION_DIR = PASTA_SAIDA / "last_session"
 _SESSION_DIR.mkdir(parents=True, exist_ok=True)
 
 _RESULT_FILE = _SESSION_DIR / "last_result.pkl"
+_META_FILE = _SESSION_DIR / "session_meta.json"
 _IMPACT_FILE = _SESSION_DIR / "news_impact_text.txt"
 _MIGRATION_FILE = _SESSION_DIR / "migration_text.txt"
 _DAILY_SUMMARY_FILE = _SESSION_DIR / "daily_summary_text.txt"
 _WEEKLY_SUMMARY_FILE = _SESSION_DIR / "weekly_summary_text.txt"
 _MONTHLY_SUMMARY_FILE = _SESSION_DIR / "monthly_summary_text.txt"
+
+
+# === Metadata (JSON) ===
+
+def save_session_meta(result: dict) -> None:
+    """Extrai info do portfolio e salva metadata JSON."""
+    try:
+        portfolio = result.get("portfolio")
+        meta = {
+            "timestamp": datetime.now().isoformat(),
+            "client_code": getattr(portfolio, "client_code", "") if portfolio else "",
+            "num_ativos": getattr(portfolio, "num_assets", 0) if portfolio else 0,
+            "total_bruto": getattr(portfolio, "total_bruto", 0.0) if portfolio else 0.0,
+        }
+        _META_FILE.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[session_persistence] Erro ao salvar meta: {e}")
+
+
+def load_session_meta() -> Optional[dict]:
+    """Carrega metadata da ultima sessao."""
+    if not _META_FILE.exists():
+        return None
+    try:
+        return json.loads(_META_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def cleanup_old_session(max_days: int = 3) -> bool:
+    """Verifica timestamp do meta; se > max_days, deleta todos os arquivos em last_session/.
+
+    Returns True se limpou, False caso contrario.
+    """
+    meta = load_session_meta()
+    if not meta:
+        return False
+    try:
+        ts = datetime.fromisoformat(meta["timestamp"])
+        if datetime.now() - ts > timedelta(days=max_days):
+            shutil.rmtree(_SESSION_DIR, ignore_errors=True)
+            _SESSION_DIR.mkdir(parents=True, exist_ok=True)
+            print(f"[session_persistence] Sessao antiga removida (>{max_days} dias)")
+            return True
+    except Exception as e:
+        print(f"[session_persistence] Erro no cleanup: {e}")
+    return False
 
 
 # === Result (pickle) ===
@@ -28,6 +79,7 @@ def save_last_result(result: dict) -> None:
     """Salva o resultado completo da análise em disco."""
     try:
         _RESULT_FILE.write_bytes(pickle.dumps(result))
+        save_session_meta(result)
     except Exception as e:
         print(f"[session_persistence] Erro ao salvar result: {e}")
 

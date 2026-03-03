@@ -676,13 +676,37 @@ HUB_CSS = f"""
         color: var(--somus-gray-900);
     }}
 
-    /* Panorama - azul */
+    /* Contexto Macro / Panorama - azul */
     .impact-card.panorama .impact-card-header {{
         background: linear-gradient(135deg, #e3f2fd 0%, #f0f7ff 100%);
         border-bottom: 2px solid #1565c0;
     }}
     .impact-card.panorama .impact-card-header h3 {{ color: #1565c0; }}
     .impact-card.panorama .impact-card-icon {{ background: #1565c0; color: white; }}
+
+    /* Setorial - indigo */
+    .impact-card.setorial .impact-card-header {{
+        background: linear-gradient(135deg, #e8eaf6 0%, #f3f4fa 100%);
+        border-bottom: 2px solid #3949ab;
+    }}
+    .impact-card.setorial .impact-card-header h3 {{ color: #3949ab; }}
+    .impact-card.setorial .impact-card-icon {{ background: #3949ab; color: white; }}
+
+    /* Cenarios Prospectivos - roxo */
+    .impact-card.cenarios .impact-card-header {{
+        background: linear-gradient(135deg, #f3e5f5 0%, #faf5fc 100%);
+        border-bottom: 2px solid #7b1fa2;
+    }}
+    .impact-card.cenarios .impact-card-header h3 {{ color: #7b1fa2; }}
+    .impact-card.cenarios .impact-card-icon {{ background: #7b1fa2; color: white; }}
+
+    /* Termometro de Risco - laranja escuro */
+    .impact-card.termometro .impact-card-header {{
+        background: linear-gradient(135deg, #fbe9e7 0%, #fff3f0 100%);
+        border-bottom: 2px solid #d84315;
+    }}
+    .impact-card.termometro .impact-card-header h3 {{ color: #d84315; }}
+    .impact-card.termometro .impact-card-icon {{ background: #d84315; color: white; }}
 
     /* Risco - vermelho */
     .impact-card.risco .impact-card-header {{
@@ -1028,6 +1052,217 @@ HUB_CSS = f"""
         color: var(--somus-gray-500);
         margin-top: 0.3rem;
         letter-spacing: 0.5px;
+    }}
+
+    /* ===================================================
+       RESPONSIVE - Tablet (<1024px)
+       =================================================== */
+    @media (max-width: 1024px) {{
+        .main .block-container {{
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }}
+        .hero-header {{
+            padding: 1.5rem 1.5rem;
+            margin-bottom: 1.2rem;
+        }}
+        .hero-header h1 {{
+            font-size: 1.4rem;
+        }}
+        .hero-header::before {{
+            width: 200px;
+            height: 200px;
+        }}
+        .hero-header::after {{
+            width: 150px;
+            height: 150px;
+        }}
+        .impact-card-body {{
+            padding: 0 1rem 1rem;
+            font-size: 0.85rem;
+        }}
+    }}
+
+    /* ===================================================
+       RESPONSIVE - Mobile (<768px)
+       =================================================== */
+    @media (max-width: 768px) {{
+        /* Sidebar: esconde no mobile */
+        section[data-testid="stSidebar"] {{
+            width: 0px !important;
+            min-width: 0px !important;
+            max-width: 0px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }}
+        section[data-testid="stSidebar"]:hover {{
+            width: 260px !important;
+            min-width: 260px !important;
+            max-width: 260px !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }}
+
+        /* Container principal - sem padding lateral excessivo */
+        .main .block-container {{
+            max-width: 100% !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-top: 0.8rem !important;
+        }}
+
+        /* Hero header compacto */
+        .hero-header {{
+            padding: 1.2rem 1rem;
+            margin-bottom: 1rem;
+            border-radius: var(--somus-radius);
+        }}
+        .hero-header h1 {{
+            font-size: 1.15rem;
+            line-height: 1.3;
+        }}
+        .hero-header p {{
+            font-size: 0.82rem;
+        }}
+        .hero-header .hero-accent {{
+            display: none;
+        }}
+        .hero-header::before,
+        .hero-header::after {{
+            display: none;
+        }}
+
+        /* KPI metrics - menores */
+        [data-testid="stMetric"] {{
+            padding: 0.3rem 0.2rem !important;
+        }}
+        [data-testid="stMetricLabel"] {{
+            font-size: 0.7rem !important;
+        }}
+        [data-testid="stMetricValue"] {{
+            font-size: 1rem !important;
+        }}
+        [data-testid="stMetricDelta"] {{
+            font-size: 0.65rem !important;
+        }}
+
+        /* Impact Cards - responsivos */
+        .impact-card {{
+            margin-bottom: 0.8rem;
+            border-radius: var(--somus-radius);
+        }}
+        .impact-card:hover {{
+            transform: none;
+        }}
+        .impact-card-header {{
+            padding: 0.7rem 0.8rem;
+            gap: 8px;
+        }}
+        .impact-card-icon {{
+            width: 32px;
+            height: 32px;
+            font-size: 1rem;
+            border-radius: 8px;
+        }}
+        .impact-card-header h3 {{
+            font-size: 0.85rem;
+        }}
+        .impact-card-body {{
+            padding: 0 0.8rem 0.8rem;
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }}
+        .impact-card-body ul {{
+            padding-left: 1rem;
+        }}
+        .impact-card-body li {{
+            margin-bottom: 0.3rem;
+        }}
+
+        /* Resumo card - ajustado */
+        .impact-card.resumo .impact-card-body {{
+            margin: 0 0.5rem 0.5rem;
+            padding: 0.7rem 0.8rem;
+        }}
+
+        /* News cards compactos */
+        .news-card {{
+            padding: 0.6rem 0.8rem !important;
+            margin-bottom: 0.4rem !important;
+        }}
+        .news-card-title a {{
+            font-size: 0.82rem !important;
+        }}
+        .news-card-meta {{
+            font-size: 0.68rem !important;
+        }}
+
+        /* Subheaders */
+        .main h2 {{
+            font-size: 1rem !important;
+        }}
+        .sub-header {{
+            font-size: 0.8rem;
+        }}
+
+        /* Footer compacto */
+        .somus-footer {{
+            font-size: 0.7rem !important;
+            padding: 0.6rem !important;
+        }}
+
+        /* Botoes full width */
+        .stButton > button {{
+            width: 100% !important;
+        }}
+
+        /* Dividers menores */
+        .main hr {{
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }}
+
+        /* Expander compacto */
+        .streamlit-expanderHeader {{
+            font-size: 0.85rem !important;
+        }}
+    }}
+
+    /* ===================================================
+       RESPONSIVE - Small Mobile (<480px)
+       =================================================== */
+    @media (max-width: 480px) {{
+        .hero-header {{
+            padding: 0.8rem 0.7rem;
+        }}
+        .hero-header h1 {{
+            font-size: 1rem;
+        }}
+        .hero-header p {{
+            font-size: 0.75rem;
+        }}
+
+        [data-testid="stMetricValue"] {{
+            font-size: 0.88rem !important;
+        }}
+
+        .impact-card-header {{
+            padding: 0.5rem 0.6rem;
+        }}
+        .impact-card-icon {{
+            width: 28px;
+            height: 28px;
+            font-size: 0.85rem;
+        }}
+        .impact-card-header h3 {{
+            font-size: 0.78rem;
+        }}
+        .impact-card-body {{
+            padding: 0 0.6rem 0.6rem;
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }}
     }}
 </style>
 """

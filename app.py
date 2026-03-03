@@ -18,6 +18,11 @@ if str(_PROJECT_DIR) not in sys.path:
 import streamlit as st
 
 from agente_investimentos.config import COR_VERDE_ESCURO, LOGO_PATH
+from agente_investimentos.dashboard.session_persistence import (
+    ensure_session_state, load_session_meta, cleanup_old_session,
+)
+from agente_investimentos.dashboard.run_history import cleanup_old_runs
+from agente_investimentos.dashboard.change_registry import cleanup_old_changes
 from agente_investimentos.hub.styles import inject_css
 
 # Carrega .env se dotenv disponivel
@@ -28,7 +33,7 @@ except ImportError:
     pass
 
 # Senha de acesso (definida no .env ou st.secrets)
-_HUB_PASSWORD = os.getenv("HUB_PASSWORD") or st.secrets.get("HUB_PASSWORD", "somus2026")
+_HUB_PASSWORD = os.getenv("HUB_PASSWORD") or st.secrets.get("HUB_PASSWORD", "")
 
 # ============================================================
 # Configuração da página
@@ -42,6 +47,12 @@ st.set_page_config(
 
 # Injeta CSS customizado
 inject_css()
+
+# Viewport meta tag para renderizacao mobile correta
+st.markdown(
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">',
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
@@ -100,7 +111,7 @@ def _show_login():
 
     st.markdown(
         '<p style="text-align:center;color:#828294;font-size:0.75rem;margin-top:2rem;">'
-        'Somus Capital &middot; Investment HUB v2.0'
+        'Somus Capital &middot; Investment HUB v2.1'
         '</p>',
         unsafe_allow_html=True,
     )
@@ -110,6 +121,17 @@ def _show_login():
 if not st.session_state.get("authenticated", False):
     _show_login()
     st.stop()
+
+# ============================================================
+# Startup: auto-cleanup + carregar sessao persistida
+# ============================================================
+if not st.session_state.get("_cleanup_done", False):
+    cleanup_old_session(3)
+    cleanup_old_runs(3)
+    cleanup_old_changes(3)
+    st.session_state["_cleanup_done"] = True
+
+ensure_session_state()
 
 # ============================================================
 # Logo superior esquerdo (visível para todos os visitantes)
@@ -135,6 +157,7 @@ PAGES = {
     "Dashboard": "page_dashboard",
     "Impacto": "page_news_impact",
     "Migração": "page_migration",
+    "Consolidador": "page_consolidador",
     "Registro de Mudanças": "page_changes",
     "Histórico": "page_history",
 }
@@ -161,7 +184,7 @@ def _report_dialog():
                 f"Tipo: {report_type}\n"
                 f"Página: {page_ctx}\n\n"
                 f"Descrição:\n{description}\n\n"
-                f"---\nEnviado via Investment HUB v2.0"
+                f"---\nEnviado via Investment HUB v2.1"
             )
             mailto = f"mailto:artur.brito@somuscapital.com.br?subject={subject}&body={body}"
             st.markdown(
@@ -274,10 +297,39 @@ with st.sidebar:
                   help="Reporte um bug ou envie uma sugestão"):
         _report_dialog()
 
+    # Carteira Ativa
+    _meta = load_session_meta()
+    if _meta and _meta.get("client_code"):
+        try:
+            from datetime import datetime as _dt
+            _ts = _dt.fromisoformat(_meta["timestamp"])
+            _ts_fmt = _ts.strftime("%d/%m %H:%M")
+        except Exception:
+            _ts_fmt = ""
+        _patrimonio = _meta.get("total_bruto", 0)
+        _pat_fmt = f"R$ {_patrimonio:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        st.markdown(
+            '<div class="sidebar-divider"></div>'
+            '<p class="sidebar-section-label">Carteira Ativa</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div style="background:#0a1929;border:1px solid #1a3a5c;border-radius:8px;'
+            f'padding:12px;margin-bottom:12px;">'
+            f'<p style="color:#90caf9;font-size:0.8rem;margin:0 0 4px 0;">Cliente</p>'
+            f'<p style="color:white;font-weight:700;font-size:1rem;margin:0 0 8px 0;">{_meta["client_code"]}</p>'
+            f'<p style="color:#90caf9;font-size:0.8rem;margin:0 0 2px 0;">'
+            f'{_meta.get("num_ativos", 0)} ativos &middot; {_pat_fmt}</p>'
+            f'<p style="color:#828294;font-size:0.7rem;margin:4px 0 0 0;">'
+            f'Analisada em {_ts_fmt}</p>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
     # Footer da sidebar
     st.markdown(
         '<div class="sidebar-footer">'
-        '<span class="footer-version">v2.0</span>'
+        '<span class="footer-version">v2.1</span>'
         '<p>Investment HUB</p>'
         '<p>Somus Capital</p>'
         '</div>',
@@ -299,6 +351,8 @@ elif page_module == "page_news_impact":
     from agente_investimentos.hub.page_news_impact import render
 elif page_module == "page_migration":
     from agente_investimentos.hub.page_migration import render
+elif page_module == "page_consolidador":
+    from agente_investimentos.hub.page_consolidador import render
 elif page_module == "page_changes":
     from agente_investimentos.hub.page_changes import render
 elif page_module == "page_history":

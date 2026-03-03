@@ -3,7 +3,7 @@
 import json
 import uuid
 from dataclasses import dataclass, asdict, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -137,3 +137,24 @@ def delete_change(change_id: str) -> bool:
         path.unlink()
         return True
     return False
+
+
+def cleanup_old_changes(max_days: int = 3) -> int:
+    """Deleta registros de mudancas com timestamp > max_days dias.
+
+    Returns: quantidade de registros deletados.
+    """
+    cutoff = datetime.now() - timedelta(days=max_days)
+    deleted = 0
+    for f in PASTA_MUDANCAS.glob("*.json"):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            ts = datetime.fromisoformat(data["timestamp"])
+            if ts < cutoff:
+                f.unlink()
+                deleted += 1
+        except Exception:
+            continue
+    if deleted:
+        print(f"[change_registry] {deleted} registro(s) antigo(s) removido(s)")
+    return deleted

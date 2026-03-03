@@ -635,11 +635,12 @@ def build_news_impact_prompt(news_articles: list, portfolio_analysis: dict, asse
         macro: Dados macroeconômicos
     """
     news_lines = []
-    for n in news_articles[:30]:
+    for n in news_articles[:40]:
         cat = n.get("categoria", "")
         fonte = n.get("fonte", "")
         título = n.get("título", "")
-        news_lines.append(f"  - [{cat}] {título} ({fonte})")
+        data = n.get("data", "")
+        news_lines.append(f"  - [{cat}] {título} (Fonte: {fonte} | {data})")
     news_text = "\n".join(news_lines) if news_lines else "Nenhuma noticia disponível."
 
     ativos_lines = []
@@ -649,69 +650,159 @@ def build_news_impact_prompt(news_articles: list, portfolio_analysis: dict, asse
         aloc = a.get("alocacao", 0)
         setor = a.get("fundamentals", {}).get("setor", "N/D")
         rent_mes = a.get("rent_mes", 0)
-        ativos_lines.append(f"  - {ticker} [{tipo}] - Setor: {setor}, Aloc: {aloc:.1f}%, Mês: {rent_mes:+.2f}%")
+        rent_ano = a.get("rent_ano", 0)
+        saldo = a.get("saldo_bruto", 0)
+        ativos_lines.append(
+            f"  - {ticker} [{tipo}] - Setor: {setor}, Aloc: {aloc:.1f}%, "
+            f"Saldo: R$ {saldo:,.2f}, Mes: {rent_mes:+.2f}%, Ano: {rent_ano:+.2f}%"
+        )
     ativos_text = "\n".join(ativos_lines)
 
     setor_dist = portfolio_analysis.get("distribuição_setor", {})
-    setor_text = "\n".join(
-        f"  - {s}: {d['alocacao']:.1f}%"
-        for s, d in setor_dist.items()
+    setor_lines = []
+    for s, d in setor_dist.items():
+        ativos_setor = d.get("ativos", [])
+        ativos_str = ", ".join(ativos_setor) if isinstance(ativos_setor, list) else str(ativos_setor)
+        setor_lines.append(
+            f"  - {s}: {d['alocacao']:.1f}% (Ativos: {ativos_str})"
+        )
+    setor_text = "\n".join(setor_lines)
+
+    tipo_dist = portfolio_analysis.get("distribuição_tipo", {})
+    tipo_text = "\n".join(
+        f"  - {k}: {v['count']} ativos, R$ {v.get('saldo', 0):,.2f} ({v['alocacao']:.1f}%)"
+        for k, v in tipo_dist.items()
     )
 
-    return f"""Você e um consultor de investimentos senior brasileiro. Análise como as NOTICIAS RECENTES impactam a CARTEIRA do cliente. Escreva em portugues.
+    concentracao = portfolio_analysis.get("nivel_concentração", "N/D")
+    hhi = portfolio_analysis.get("concentração_hhi", 0)
 
-CARTEIRA DO CLIENTE:
+    return f"""Você e um estrategista-chefe de investimentos de uma assessoria premium brasileira. Sua missão e produzir uma ANÁLISE DE IMPACTO PROFUNDA e ESTRATEGICA, conectando as noticias do momento com a carteira real do cliente. Escreva em portugues.
+
+IMPORTANTE: Não seja generico. Cada afirmação DEVE estar conectada a uma noticia especifica OU a um ativo especifico da carteira. Use raciocinio de CAUSA e EFEITO.
+
+═══════════════════════════════════════
+CARTEIRA DO CLIENTE
+═══════════════════════════════════════
 - Patrimônio total: R$ {portfolio_analysis['total_bruto']:,.2f}
 - Número de ativos: {portfolio_analysis['num_ativos']}
-- Rent. mes: {portfolio_analysis['rent_mes_ponderada']:+.2f}%
-- Rent. ano: {portfolio_analysis['rent_ano_ponderada']:+.2f}%
+- Rent. mes ponderada: {portfolio_analysis['rent_mes_ponderada']:+.2f}%
+- Rent. ano ponderada: {portfolio_analysis['rent_ano_ponderada']:+.2f}%
+- Concentracao: {concentracao} (HHI: {hhi:.4f})
 
-ATIVOS DA CARTEIRA:
+DISTRIBUICAO POR TIPO:
+{tipo_text}
+
+ATIVOS DA CARTEIRA (com dados recentes):
 {ativos_text}
 
-DISTRIBUICAO SETORIAL:
+DISTRIBUICAO SETORIAL (com ativos por setor):
 {setor_text}
 
-CENARIO MACRO:
+CENARIO MACRO ATUAL:
 - CDI anual: {macro.get('cdi_anual', 'N/D')}%
 - SELIC meta: {macro.get('selic_meta', 'N/D')}%
-- IPCA: {macro.get('ipca_mensal', 'N/D')}%
+- IPCA mensal: {macro.get('ipca_mensal', 'N/D')}%
 
-NOTICIAS RECENTES (de diversas fontes):
+NOTICIAS RECENTES (leia TODAS com atencao):
 {news_text}
 
-Forneça uma análise de impacto DETALHADA com EXATAMENTE 5 seções:
+═══════════════════════════════════════
+INSTRUÇÕES DE ANÁLISE
+═══════════════════════════════════════
 
-**1. PANORAMA GERAL**
-Organize o cenario atual por TEMAS:
-- **Geopolitica**: eventos internacionais que afetam mercados (cite noticias especificas)
-- **Economia Global**: movimentos em juros, cambio, commodities no exterior
-- **Economia Domestica**: SELIC, IPCA, fiscal, PIB, emprego no Brasil
-- **Setorial**: eventos que afetam setores especificos presentes na carteira
-Conecte cada tema as noticias analisadas. 5-8 frases no total.
+Produza uma analise com EXATAMENTE 8 secoes. Cada secao deve ser rica, profunda e com topicos organizados. NAO seja superficial.
 
-**2. ATIVOS EM RISCO**
-- Liste os ativos da carteira que podem ser NEGATIVAMENTE impactados pelas notícias
-- Para cada ativo: ticker, motivo, nivel de risco (ALTO/MEDIO/BAIXO)
-- OBRIGATORIO: cite a noticia especifica que gera o risco (ex: "Conforme noticia '[titulo]'...")
-- Se nenhum ativo estiver em risco, diga explicitamente
+**1. CONTEXTO MACROECONOMICO E POLITICO**
+Construa o CENARIO COMPLETO do momento atual baseado nas noticias. Organize em topicos:
 
-**3. ATIVOS FAVORECIDOS**
-- Liste os ativos da carteira que podem ser POSITIVAMENTE impactados
-- Para cada ativo: ticker, motivo, potencial (ALTO/MEDIO/BAIXO)
-- OBRIGATORIO: cite a noticia especifica que favorece o ativo (ex: "Conforme noticia '[titulo]'...")
-- Se nenhum for favorecido, diga explicitamente
+- **Politica Monetaria e Juros**: O que esta acontecendo com SELIC, juros futuros, expectativas do COPOM? Como isso se conecta as noticias? Qual a tendencia?
+- **Inflacao e Poder de Compra**: IPCA, IGP-M, pressoes inflacionarias ou deflacionarias identificadas nas noticias. Impacto no consumo e renda fixa.
+- **Cenario Fiscal e Politico**: Decisoes do governo, reformas, gastos publicos, arcabouco fiscal, risco politico. Cite noticias especificas.
+- **Cenario Internacional**: Fed, BCE, juros globais, guerras comerciais, commodities, dolar. O que vem de fora e como afeta o Brasil?
+- **Cambio e Fluxo de Capital**: Tendencia do dolar/real, entrada/saida de capital estrangeiro, balanca comercial.
 
-**4. AÇÕES RECOMENDADAS**
-- 3-5 ações concretas que o assessor deveria considerar com base nas notícias
-- Para cada acao: descricao, justificativa, urgencia (ALTA/MEDIA/BAIXA), horizonte temporal (IMEDIATO/CURTO PRAZO/MEDIO PRAZO)
-- OBRIGATORIO: vincule cada acao a uma noticia ou tendencia identificada no panorama
+Para cada topico, CITE pelo menos uma noticia especifica que sustenta sua analise. Use 10-15 frases no total. Seja analitico, nao apenas descritivo.
 
-**5. RESUMO EXECUTIVO**
-- 3-5 frases finais sintetizando o impacto geral das notícias na carteira
-- Tom: profissional, objetivo, sem alarmismo
+**2. MAPA DE IMPACTO SETORIAL**
+Para CADA setor presente na carteira do cliente, analise:
+- Quais noticias afetam diretamente este setor (positiva ou negativamente)?
+- Qual a TENDENCIA do setor no curto prazo (1-3 meses) baseado no cenario?
+- Nivel de exposicao do cliente ao setor (% da carteira)
+- Classificacao: FAVORAVEL / NEUTRO / DESFAVORAVEL
 
-Seja objetivo, use dados concretos. Correlacione notícias especificas com ativos especificos. Cite titulos de noticias quando relevante."""
+Formato por setor:
+**[Nome do Setor]** (X% da carteira - Ativos: TICK1, TICK2)
+- Impacto: [FAVORAVEL/NEUTRO/DESFAVORAVEL]
+- Analise: [2-3 frases conectando noticias ao setor]
+- Noticias relacionadas: "[titulo da noticia 1]", "[titulo da noticia 2]"
+
+**3. ATIVOS EM RISCO**
+Liste os ativos da carteira que podem ser NEGATIVAMENTE impactados. Para cada:
+- **Ticker**: nome e tipo do ativo
+- **Risco**: ALTO / MEDIO / BAIXO
+- **Exposicao**: quanto representa na carteira (% e R$)
+- **Cadeia de Impacto**: explique a LOGICA completa: Noticia -> Efeito no setor/economia -> Impacto no ativo especifico
+- **Noticia-gatilho**: "Conforme noticia '[titulo exato]'..."
+- **Sinal de Alerta**: o que monitorar para confirmar se o risco se materializa
+
+Se nenhum ativo estiver em risco, diga explicitamente e justifique.
+
+**4. ATIVOS FAVORECIDOS**
+Liste os ativos que podem ser POSITIVAMENTE impactados. Para cada:
+- **Ticker**: nome e tipo do ativo
+- **Potencial**: ALTO / MEDIO / BAIXO
+- **Exposicao**: quanto representa na carteira (% e R$)
+- **Cadeia de Oportunidade**: Noticia -> Efeito positivo -> Beneficio para o ativo
+- **Noticia-catalisador**: "Conforme noticia '[titulo exato]'..."
+- **Janela de Oportunidade**: por quanto tempo este catalisador deve persistir?
+
+Se nenhum for favorecido, diga explicitamente e justifique.
+
+**5. CENARIOS PROSPECTIVOS**
+Construa 3 cenarios de curto prazo (1-3 meses) baseados nas tendencias das noticias:
+
+- **Cenario Otimista (Bull Case)**: O que precisaria acontecer para a carteira performar bem? Quais noticias apontam nessa direcao? Probabilidade estimada.
+- **Cenario Base (Mais Provavel)**: O que PROVAVELMENTE vai acontecer dado o cenario atual? Como a carteira se comportaria? Probabilidade estimada.
+- **Cenario Pessimista (Bear Case)**: Quais riscos podem se materializar? Quais noticias sinalizam perigo? Qual seria o impacto na carteira? Probabilidade estimada.
+
+Para cada cenario, estime o impacto aproximado na rentabilidade da carteira (ex: "poderia adicionar +1-2% no mes" ou "risco de queda de -3-5%").
+
+**6. TERMOMETRO DE RISCO DA CARTEIRA**
+Avaliacao consolidada do nivel de risco ATUAL da carteira frente ao cenario:
+- **Nivel Geral de Risco**: BAIXO / MODERADO / ELEVADO / CRITICO
+- **Principais Vulnerabilidades**: liste os 3 maiores pontos fracos da carteira no cenario atual
+- **Fatores de Protecao**: o que na carteira serve como protecao/hedge natural?
+- **Diversificacao**: a carteira esta bem posicionada para o cenario? Faltam setores defensivos? Ha concentracao excessiva em algum segmento vulneravel?
+- **Indice de Urgencia**: de 1 a 10, qual a urgencia de agir sobre a carteira agora? Justifique.
+
+**7. ACOES RECOMENDADAS**
+5-7 acoes concretas e priorizadas que o assessor deveria executar. Para cada:
+- **Acao**: descricao objetiva do que fazer
+- **Justificativa**: por que fazer isso AGORA (conecte a noticia/cenario)
+- **Prioridade**: CRITICA / ALTA / MEDIA / BAIXA
+- **Horizonte**: IMEDIATO (hoje) / CURTO PRAZO (1-2 semanas) / MEDIO PRAZO (1-3 meses)
+- **Impacto Esperado**: o que se espera ganhar/proteger com essa acao
+
+Ordene da mais urgente para a menos urgente.
+
+**8. RESUMO EXECUTIVO**
+5-8 frases de alto nivel para o assessor ter uma visao rapida:
+- Qual o "tom" geral do mercado para esta carteira? (otimista/cauteloso/defensivo)
+- Os 2-3 principais riscos que merecem atencao imediata
+- As 2-3 maiores oportunidades identificadas
+- Uma frase final de recomendacao estrategica geral
+
+Tom: profissional, analitico, direto, sem alarmismo mas sem omitir riscos reais.
+
+═══════════════════════════════════════
+REGRAS FINAIS
+═══════════════════════════════════════
+- SEMPRE cite titulos de noticias entre aspas simples quando referenciar
+- Use raciocinio de CAUSA e EFEITO, nao apenas liste fatos
+- Conecte CADA ponto a dados concretos (noticias, tickers, percentuais)
+- Seja ANALITICO: explique o POR QUE, nao apenas o QUE
+- Nao repita informacoes entre secoes — cada secao traz perspectiva UNICA"""
 
 
 # ============================================================

@@ -40,8 +40,9 @@ def render():
     # Banner de contexto de impacto — sem checkbox, usa automaticamente se disponível
     news_impact_text = st.session_state.get("news_impact_text", "")
     if news_impact_text:
+        impact_len = len(news_impact_text)
         st.success(
-            "Contexto de impacto das noticias **integrado** automaticamente. "
+            f"Contexto de impacto das noticias **integrado** automaticamente ({impact_len:,} caracteres). "
             "Os riscos identificados serao usados para gerar estrategias de mitigacao."
         )
     else:
@@ -72,6 +73,8 @@ def render():
     if migration_text and not migration_text.startswith("[ERRO]"):
         st.divider()
         _render_migration_analysis(migration_text)
+
+    st.caption("Registre as acoes executadas em **Registro de Mudancas**")
 
     render_footer()
 

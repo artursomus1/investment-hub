@@ -4,6 +4,54 @@ import streamlit as st
 from datetime import datetime
 
 
+# === Mobile Detection ===
+
+def is_mobile() -> bool:
+    """Detecta se o acesso e mobile baseado na largura da tela.
+
+    Usa JavaScript para capturar a largura do viewport e grava no session_state.
+    Na primeira carga retorna False (desktop) ate o JS rodar.
+    """
+    # Injeta JS que detecta largura e envia pro Streamlit via query param
+    _inject_mobile_detector()
+    return st.session_state.get("is_mobile", False)
+
+
+def _inject_mobile_detector():
+    """Injeta script JS que detecta viewport e atualiza session_state."""
+    # Se ja detectou nesta sessao, nao re-injeta
+    if "mobile_detected" in st.session_state:
+        return
+
+    # Usa st.query_params para receber a largura do JS
+    params = st.query_params
+    screen_w = params.get("_sw")
+    if screen_w:
+        try:
+            width = int(screen_w)
+            st.session_state["is_mobile"] = width < 768
+            st.session_state["is_tablet"] = 768 <= width < 1024
+            st.session_state["screen_width"] = width
+            st.session_state["mobile_detected"] = True
+            return
+        except (ValueError, TypeError):
+            pass
+
+    # Injeta JS para capturar largura e recarregar com query param
+    st.markdown("""
+    <script>
+    (function() {
+        const url = new URL(window.location);
+        const sw = window.innerWidth || document.documentElement.clientWidth;
+        if (!url.searchParams.has('_sw')) {
+            url.searchParams.set('_sw', sw.toString());
+            window.location.replace(url.toString());
+        }
+    })();
+    </script>
+    """, unsafe_allow_html=True)
+
+
 # === Category Badge ===
 
 _BADGE_CLASSES = {
@@ -138,7 +186,7 @@ def render_footer():
         <span class="footer-line"></span>
         <span class="footer-brand">Somus Capital</span>
         <span class="footer-separator">|</span>
-        Investment HUB v2.0
+        Investment HUB v2.1
         <span class="footer-separator">|</span>
         {year}
     </div>

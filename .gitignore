@@ -31,3 +31,12 @@ nul
 
 # Runtime / local
 .tunnel_url
+
+# Arquivos locais (não necessários no deploy)
+*.bat
+*.ico
+*.docx
+splash.html
+REGISTRO_DESENVOLVIMENTO.txt
+READ ME.txt
+LEITOR XP PERFORMANCE.PY

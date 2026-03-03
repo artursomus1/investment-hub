@@ -86,12 +86,14 @@ def _get_block_reason(response) -> str:
     return ""
 
 
-def _generate(prompt: str) -> Optional[str]:
+def _generate(prompt: str, config=None) -> Optional[str]:
     """Faz chamada ao Gemini com retries e safety settings permissivos."""
     client = _get_client()
     if client is None:
         print("[Gemini] API key não configurada ou inválida")
         return None
+
+    gen_config = config or _GENERATION_CONFIG
 
     for attempt in range(2):  # máx 2 tentativas para não travar
         try:
@@ -99,7 +101,7 @@ def _generate(prompt: str) -> Optional[str]:
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=prompt,
-                config=_GENERATION_CONFIG,
+                config=gen_config,
             )
 
             # Tenta response.text (pode levantar ValueError se bloqueado)
@@ -258,13 +260,18 @@ def analyze_news_impact_ai(
         macro: Dados macroeconômicos
 
     Returns:
-        Texto com análise de impacto (5 seções)
+        Texto com análise de impacto (8 seções)
     """
     if not news_articles:
         return "[ERRO] Nenhuma noticia disponível para analisar."
     prompt = build_news_impact_prompt(news_articles, portfolio_analysis, asset_analyses, macro)
     print(f"[Gemini] News impact: {len(news_articles)} notícias, prompt ~{len(prompt)} chars")
-    result = _generate(prompt)
+    # Usa config com mais tokens para análise profunda (8 seções)
+    config = types.GenerateContentConfig(
+        safety_settings=_SAFETY_SETTINGS,
+        max_output_tokens=16384,
+    )
+    result = _generate(prompt, config=config)
     if result:
         return result
     return "[ERRO] Análise de impacto das notícias indisponível. Verifique o console para detalhes."

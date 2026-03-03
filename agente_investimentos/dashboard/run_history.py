@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -78,3 +78,24 @@ def load_run(run_id: str) -> Optional[RunRecord]:
         return RunRecord(**data)
     except Exception:
         return None
+
+
+def cleanup_old_runs(max_days: int = 3) -> int:
+    """Deleta registros de historico com timestamp > max_days dias.
+
+    Returns: quantidade de registros deletados.
+    """
+    cutoff = datetime.now() - timedelta(days=max_days)
+    deleted = 0
+    for f in PASTA_HISTORICO.glob("*.json"):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            ts = datetime.fromisoformat(data["timestamp"])
+            if ts < cutoff:
+                f.unlink()
+                deleted += 1
+        except Exception:
+            continue
+    if deleted:
+        print(f"[run_history] {deleted} registro(s) antigo(s) removido(s)")
+    return deleted

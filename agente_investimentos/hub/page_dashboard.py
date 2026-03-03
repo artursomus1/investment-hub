@@ -94,7 +94,8 @@ def _render_full_dashboard(result: dict):
     c3.metric("Rent. Mês", f"{pa['rent_mes_ponderada']:.2f}%")
     c4.metric("Rent. Ano", f"{pa['rent_ano_ponderada']:.2f}%")
     c5.metric("Concentração", pa["nivel_concentração"],
-              delta=f"HHI: {pa['concentração_hhi']:.0f}", delta_color="off")
+              delta=f"HHI: {pa['concentração_hhi']:.0f}", delta_color="off",
+              help="HHI (Herfindahl-Hirschman): mede concentracao. <1500 = baixa, 1500-2500 = moderada, >2500 = alta")
 
     # Alertas de risco
     risk_alerts = []
@@ -110,6 +111,7 @@ def _render_full_dashboard(result: dict):
     if risk_alerts:
         st.divider()
         st.subheader("Alertas de Risco")
+        st.caption("Criterios: alocacao > 15% em um unico ativo ou queda mensal > 10%")
         for alert in risk_alerts[:10]:
             st.warning(alert)
 
@@ -131,6 +133,7 @@ def _render_full_dashboard(result: dict):
             values = [d["alocacao"] for d in dist_setor.values()]
             fig = px.pie(names=labels, values=values,
                          color_discrete_sequence=px.colors.qualitative.Set3, hole=0.35)
+            fig.update_traces(textinfo="percent+label")
             fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=350,
                               legend=dict(font=dict(size=10)))
             st.plotly_chart(fig, use_container_width=True)
@@ -147,6 +150,7 @@ def _render_full_dashboard(result: dict):
             fig = px.bar(x=tipos, y=saldos, labels={"x": "Tipo", "y": "Saldo (R$)"},
                          color=tipos,
                          color_discrete_sequence=[COR_VERDE_ESCURO, COR_AZUL, "#28a745", "#ffc107", "#dc3545"])
+            fig.update_traces(text_auto=True)
             fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=350, showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
         elif dist_tipo:
@@ -181,11 +185,16 @@ def _render_full_dashboard(result: dict):
     if macro:
         st.divider()
         st.subheader("Dados Macroeconômicos")
+        st.caption("Dados do Banco Central do Brasil (BCB SGS) — atualizados diariamente")
         mc1, mc2, mc3, mc4 = st.columns(4)
-        mc1.metric("CDI Anual", f"{macro.get('cdi_anual', 'N/D')}%")
-        mc2.metric("SELIC Meta", f"{macro.get('selic_meta', 'N/D')}%")
-        mc3.metric("IPCA 12m", f"{macro.get('ipca_12m', 'N/D')}%")
-        mc4.metric("CDI Mensal", f"{macro.get('cdi_mensal', 'N/D')}%")
+        mc1.metric("CDI Anual", f"{macro.get('cdi_anual', 'N/D')}%",
+                    help="Taxa CDI acumulada nos ultimos 12 meses")
+        mc2.metric("SELIC Meta", f"{macro.get('selic_meta', 'N/D')}%",
+                    help="Taxa basica de juros definida pelo COPOM")
+        mc3.metric("IPCA 12m", f"{macro.get('ipca_12m', 'N/D')}%",
+                    help="Inflacao acumulada nos ultimos 12 meses")
+        mc4.metric("CDI Mensal", f"{macro.get('cdi_mensal', 'N/D')}%",
+                    help="Taxa CDI do ultimo mes")
 
     # Downloads
     st.divider()
@@ -205,5 +214,7 @@ def _render_full_dashboard(result: dict):
             ep = Path(str(execution_path))
             st.download_button("Download PDF Execução", data=ep.read_bytes(),
                                file_name=ep.name, mime="application/pdf", use_container_width=True)
+
+    st.caption("Acesse **Impacto** para cruzar noticias com a carteira")
 
     render_footer()
