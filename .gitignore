@@ -1,0 +1,33 @@
+# Ambiente e segredos
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Dados gerados
+SAIDA DE DADOS/
+
+# Cache (apenas dados runtime, não o código fonte)
+agente_investimentos/cache/data/
+
+# PDFs de entrada (dados do usuario)
+COLETA DE DADOS/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Windows
+*.vbs
+nul
+
+# Runtime / local
+.tunnel_url
