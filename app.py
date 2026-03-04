@@ -281,6 +281,20 @@ with st.sidebar:
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
     st.markdown('<p class="sidebar-section-label">Ações Rápidas</p>', unsafe_allow_html=True)
 
+    # Botao de reiniciar HUB (recarrega código atualizado)
+    if st.button("🔄 Reiniciar HUB", use_container_width=True, type="primary",
+                  help="Reinicia o HUB aplicando alterações de código"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        # Remove módulos do projeto do cache para forçar re-import
+        _mods_to_remove = [
+            k for k in sys.modules
+            if k.startswith("agente_investimentos")
+        ]
+        for _mod in _mods_to_remove:
+            del sys.modules[_mod]
+        st.rerun()
+
     # Botao de atualizar dados
     if st.button("Atualizar Dados", use_container_width=True,
                   help="Recarrega notícias frescas (ignora cache)"):

@@ -13,7 +13,7 @@ from agente_investimentos.consolidador.models import ConsolidatedPortfolio
 
 # Formatos aceitos e seus parsers
 _SUPPORTED_FORMATS = {
-    ".pdf": "Safra, XP, ou outro (PDF)",
+    ".pdf": "XP, Safra, Itau ou outro (PDF)",
     ".xlsx": "BTG Pactual (XLSX)",
     ".xls": "BTG Pactual (XLS)",
 }
@@ -25,11 +25,30 @@ def _detect_and_parse(file_path: str, filename: str):
     name_lower = filename.lower()
 
     if ext == ".pdf":
-        # Detecta Safra pelo conteudo
         import pdfplumber
+        import warnings
+        warnings.filterwarnings("ignore")
         with pdfplumber.open(file_path) as pdf:
-            page1 = pdf.pages[0].extract_text() or "" if pdf.pages else ""
-            if "safra" in page1.lower() or "safrabm" in page1.lower():
+            # Concatena texto das primeiras 3 paginas para deteccao
+            pages_text = ""
+            for p in pdf.pages[:3]:
+                pages_text += (p.extract_text() or "") + "\n"
+            pages_lower = pages_text.lower()
+
+            # Detecta XP pelo conteudo (Posicao Consolidada + conta + assessor)
+            if ("xp investimentos" in pages_lower or "assessor" in pages_lower
+                    or "posicao detalhada" in pages_lower.replace("\xe7", "c").replace("\xe3", "a")
+                    or "patrimonio investimento" in pages_lower.replace("\xf4", "o").replace("\xea", "e")):
+                from agente_investimentos.consolidador.xp_parser import parse_xp_pdf
+                return parse_xp_pdf(file_path)
+
+            # Detecta Itau pelo conteudo
+            if "itau" in pages_lower or "personnalite" in pages_lower or "total investido" in pages_lower:
+                from agente_investimentos.consolidador.itau_parser import parse_itau_pdf
+                return parse_itau_pdf(file_path)
+
+            # Detecta Safra pelo conteudo
+            if "safra" in pages_lower or "safrabm" in pages_lower:
                 from agente_investimentos.consolidador.safra_parser import parse_safra_pdf
                 return parse_safra_pdf(file_path)
 
@@ -55,7 +74,7 @@ def render():
     )
 
     st.markdown(
-        "Arraste seus relatorios abaixo. **Formatos aceitos**: PDF (Safra, XP) e XLSX (BTG Pactual)."
+        "Arraste seus relatorios abaixo. **Formatos aceitos**: PDF (XP, Safra, Itau) e XLSX (BTG Pactual)."
     )
 
     # Upload de arquivos
@@ -63,7 +82,7 @@ def render():
         "Envie seus relatorios",
         type=["pdf", "xlsx", "xls"],
         accept_multiple_files=True,
-        help="Aceita PDF (Safra) e XLSX (BTG). Envie quantos quiser.",
+        help="Aceita PDF (XP, Safra, Itau) e XLSX (BTG). Envie quantos quiser.",
     )
 
     if not uploaded_files:
