@@ -16,6 +16,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from fpdf.enums import RenderStyle
+
 from agente_investimentos.consolidador.models import ConsolidatedPortfolio, InstitutionData
 from agente_investimentos.report.base_pdf import SomusPDF, _data_completa, check_space
 from agente_investimentos.report.styles import (
@@ -35,9 +37,15 @@ from agente_investimentos.utils.formatters import sanitize_text
 
 FUNDO_PDF = (240, 240, 224)       # #f0f0e0
 FUNDO_PDF_HEX = "#f0f0e0"
+CARD_BG = (255, 255, 255)         # branco para cards
+CARD_SHADOW = (210, 210, 200)     # sombra sutil
 VERMELHO = (198, 40, 40)
 AMARELO = (243, 156, 18)
 LARANJA = (230, 126, 34)
+BORDER_LIGHT = (200, 200, 190)    # borda sutil
+VERDE_PASTEL = (220, 242, 230)    # fundo cards verdes
+AZUL_PASTEL = (220, 232, 248)     # fundo cards azuis
+VERMELHO_PASTEL = (248, 225, 225) # fundo cards vermelhos
 
 
 # ============================================================
@@ -73,26 +81,39 @@ def _tmp_path(suffix=".png") -> str:
     return tempfile.mktemp(suffix=suffix)
 
 
-def _safe_rect(pdf, x, y, w, h, r=0, style="F"):
-    """Draws a rect (ignores radius since rounded_rect may not exist)."""
-    pdf.rect(x, y, w, h, style)
+def _rrect(pdf, x, y, w, h, r, style="F"):
+    """Desenha retangulo com bordas arredondadas."""
+    rs = {"F": RenderStyle.F, "D": RenderStyle.D, "DF": RenderStyle.DF}.get(style, RenderStyle.F)
+    pdf._draw_rounded_rect(x, y, w, h, rs, True, min(r, h / 2, w / 2))
 
 
-def _rounded_bar(pdf, title: str, color=VERDE_ESCURO):
-    """Barra de titulo centralizada."""
+def _section_bar(pdf, title: str, color=VERDE_ESCURO):
+    """Barra de titulo arredondada e centralizada."""
     y = pdf.get_y()
     pdf.set_fill_color(*color)
-    _safe_rect(pdf, MARGIN_LEFT, y, CONTENT_WIDTH, 7, "F")
+    _rrect(pdf, MARGIN_LEFT, y, CONTENT_WIDTH, 8, 3, "F")
     pdf.set_text_color(*BRANCO)
-    pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
-    pdf.set_xy(MARGIN_LEFT, y)
+    pdf.set_font(FONT_BODY, "B", SIZE_SMALL + 0.5)
+    pdf.set_xy(MARGIN_LEFT, y + 0.5)
     pdf.cell(CONTENT_WIDTH, 7, sanitize_text(title), align="C")
-    pdf.set_y(y + 8)
+    pdf.set_y(y + 10)
     pdf.set_text_color(*TEXTO)
 
 
+def _card_box(pdf, x, y, w, h, r=3):
+    """Desenha card branco com sombra sutil e borda."""
+    # Sombra
+    pdf.set_fill_color(*CARD_SHADOW)
+    _rrect(pdf, x + 0.4, y + 0.4, w, h, r, "F")
+    # Card
+    pdf.set_fill_color(*CARD_BG)
+    pdf.set_draw_color(*BORDER_LIGHT)
+    pdf.set_line_width(0.2)
+    _rrect(pdf, x, y, w, h, r, "DF")
+
+
 # ============================================================
-# Chart generators (fundo #f0f0e0)
+# Chart generators
 # ============================================================
 
 def _chart_donut_tipos(data: dict, title: str) -> str:
@@ -110,18 +131,18 @@ def _chart_donut_tipos(data: dict, title: str) -> str:
         values = [v for _, v in top] + [rest]
 
     colors = CHART_PALETTE[:len(labels)]
-    fig, ax = plt.subplots(figsize=(4.5, 3.2))
+    fig, ax = plt.subplots(figsize=(4.2, 3.0))
     wedges, texts, autotexts = ax.pie(
         values, labels=None, autopct="%1.1f%%",
         colors=colors, startangle=90, pctdistance=0.78,
-        wedgeprops=dict(width=0.45, edgecolor=FUNDO_PDF_HEX, linewidth=1.5),
+        wedgeprops=dict(width=0.45, edgecolor="white", linewidth=1.5),
         textprops={"fontsize": 7},
     )
     for t in autotexts:
         t.set_fontsize(6.5)
         t.set_fontweight("bold")
     ax.legend(labels, loc="center left", bbox_to_anchor=(1, 0.5), fontsize=7, frameon=False)
-    ax.set_title(title, fontsize=9, fontweight="bold", color=MPL_VERDE, pad=8)
+    ax.set_title(sanitize_text(title), fontsize=9, fontweight="bold", color=MPL_VERDE, pad=6)
     plt.tight_layout()
     path = _tmp_path()
     fig.savefig(path, dpi=160, bbox_inches="tight", facecolor=FUNDO_PDF_HEX)
@@ -139,7 +160,7 @@ def _chart_bar_comparativo(inst_data: dict) -> str:
     colors = CHART_PALETTE[:len(labels)]
     fig, ax = plt.subplots(figsize=(5, max(2, len(labels) * 0.8)))
     bars = ax.barh(labels[::-1], [v / 1000 for v in values[::-1]],
-                   color=colors[::-1], height=0.5, edgecolor=FUNDO_PDF_HEX, linewidth=0.5)
+                   color=colors[::-1], height=0.5, edgecolor="white", linewidth=0.5)
     for bar, val in zip(bars, values[::-1]):
         ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
                 _fmt_brl(val), va="center", fontsize=7, color="#333")
@@ -245,76 +266,90 @@ class ConsolidadorPDFBuilder:
         pdf.add_page()
         pdf.skip_footer_on_current_page()
 
+        # Fundo verde escuro
         pdf.set_fill_color(*VERDE_ESCURO)
         pdf.rect(0, 0, 210, 297, "F")
 
+        # Faixa decorativa superior
+        pdf.set_fill_color(0, 60, 40)
+        pdf.rect(0, 0, 210, 4, "F")
+
         if LOGO_PATH.exists():
             try:
-                pdf.image(str(LOGO_PATH), x=70, y=35, w=70)
+                pdf.image(str(LOGO_PATH), x=70, y=30, w=70)
             except Exception:
                 pass
 
-        pdf.set_y(90)
-        pdf.set_font(FONT_TITLE, "B", 30)
+        pdf.set_y(85)
+        pdf.set_font(FONT_TITLE, "B", 28)
         pdf.set_text_color(*BRANCO)
         pdf.cell(CONTENT_WIDTH, 14, sanitize_text("RELATORIO CONSOLIDADO"),
                  align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
-        pdf.set_font(FONT_BODY, "", 13)
+        pdf.ln(2)
+        pdf.set_font(FONT_BODY, "", 12)
+        pdf.set_text_color(200, 220, 210)
         pdf.cell(CONTENT_WIDTH, 8, sanitize_text("Carteira Multi-Instituicao"),
                  align="C", new_x="LMARGIN", new_y="NEXT")
 
         # Linha decorativa
-        pdf.ln(8)
-        pdf.set_draw_color(*BRANCO)
-        pdf.set_line_width(0.5)
-        pdf.line(75, pdf.get_y(), 135, pdf.get_y())
+        pdf.ln(6)
+        pdf.set_draw_color(100, 180, 140)
+        pdf.set_line_width(0.4)
+        pdf.line(70, pdf.get_y(), 140, pdf.get_y())
 
-        # KPIs na capa
-        pdf.ln(12)
-        pdf.set_font(FONT_BODY, "B", 22)
-        pdf.cell(CONTENT_WIDTH, 10, _fmt_brl(self.cp.patrimonio_bruto_total),
-                 align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font(FONT_BODY, "", 10)
-        pdf.set_text_color(200, 220, 210)
-        pdf.cell(CONTENT_WIDTH, 6, sanitize_text("Patrimonio Total Consolidado"),
-                 align="C", new_x="LMARGIN", new_y="NEXT")
-
-        pdf.ln(8)
+        # Patrimonio destaque
+        pdf.ln(10)
+        pdf.set_font(FONT_BODY, "B", 24)
         pdf.set_text_color(*BRANCO)
+        pdf.cell(CONTENT_WIDTH, 11, _fmt_brl(self.cp.patrimonio_bruto_total),
+                 align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font(FONT_BODY, "", 9)
+        pdf.set_text_color(180, 210, 195)
+        pdf.cell(CONTENT_WIDTH, 5, sanitize_text("Patrimonio Total Consolidado"),
+                 align="C", new_x="LMARGIN", new_y="NEXT")
 
+        # KPIs na capa com cards arredondados
+        pdf.ln(10)
         box_y = pdf.get_y()
-        box_w = CONTENT_WIDTH / 3
+        box_w = (CONTENT_WIDTH - 6) / 3
         for i, (label, value) in enumerate([
             ("Instituicoes", str(self.cp.num_instituicoes)),
             ("Ativos", str(self.cp.num_ativos_total)),
             ("Rent. Ano", _fmt_pct(self.cp.rent_ano_ponderada())),
         ]):
-            x = MARGIN_LEFT + i * box_w
-            pdf.set_xy(x, box_y)
+            x = MARGIN_LEFT + i * (box_w + 3)
+            # Card semi-transparente
+            pdf.set_fill_color(0, 60, 40)
+            _rrect(pdf, x, box_y, box_w, 18, 3, "F")
+            pdf.set_xy(x, box_y + 2)
             pdf.set_font(FONT_BODY, "B", 16)
+            pdf.set_text_color(*BRANCO)
             pdf.cell(box_w, 8, value, align="C", new_x="LEFT", new_y="NEXT")
             pdf.set_x(x)
-            pdf.set_font(FONT_BODY, "", 8)
-            pdf.set_text_color(180, 210, 195)
+            pdf.set_font(FONT_BODY, "", 7)
+            pdf.set_text_color(160, 200, 180)
             pdf.cell(box_w, 5, sanitize_text(label), align="C")
-            pdf.set_text_color(*BRANCO)
 
-        pdf.set_y(box_y + 25)
-        pdf.ln(5)
-        pdf.set_font(FONT_BODY, "", 10)
-        pdf.set_text_color(200, 220, 210)
+        pdf.set_text_color(*BRANCO)
+        pdf.set_y(box_y + 26)
+        pdf.set_font(FONT_BODY, "", 9)
+        pdf.set_text_color(180, 210, 195)
         for inst in self.cp.instituicoes:
             pdf.cell(CONTENT_WIDTH, 6,
                      sanitize_text(f"{inst.nome}  -  {_fmt_brl(inst.patrimonio_bruto)}  -  {inst.num_ativos} ativos"),
                      align="C", new_x="LMARGIN", new_y="NEXT")
 
-        pdf.set_y(255)
-        pdf.set_font(FONT_BODY, "", 9)
-        pdf.set_text_color(150, 180, 170)
-        pdf.cell(CONTENT_WIDTH, 6, sanitize_text(f"Gerado em {_data_completa()}"),
+        # Rodape capa
+        pdf.set_y(258)
+        pdf.set_draw_color(100, 180, 140)
+        pdf.set_line_width(0.2)
+        pdf.line(60, pdf.get_y(), 150, pdf.get_y())
+        pdf.ln(4)
+        pdf.set_font(FONT_BODY, "", 8)
+        pdf.set_text_color(140, 170, 160)
+        pdf.cell(CONTENT_WIDTH, 5, sanitize_text(f"Gerado em {_data_completa()}"),
                  align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(CONTENT_WIDTH, 6, "Somus Capital - Investment HUB",
+        pdf.cell(CONTENT_WIDTH, 5, "Somus Capital - Investment HUB",
                  align="C", new_x="LMARGIN", new_y="NEXT")
 
     # ----------------------------------------------------------
@@ -325,9 +360,8 @@ class ConsolidadorPDFBuilder:
         self._page_bg(pdf)
         pdf.set_text_color(*TEXTO)
 
-        # Header centralizado e arredondado
-        _rounded_bar(pdf, inst.nome.upper(), color=AZUL)
-        pdf.ln(1)
+        # Header arredondado
+        _section_bar(pdf, inst.nome.upper(), color=AZUL)
 
         # KPIs visuais (4 cards)
         self._render_kpi_row(pdf, [
@@ -338,7 +372,7 @@ class ConsolidadorPDFBuilder:
             (sanitize_text("Rent. Mes"), _fmt_pct(inst.rent_carteira_mes) if inst.rent_carteira_mes else "N/D",
              VERDE_ESCURO if inst.rent_carteira_mes >= 0 else VERMELHO),
         ])
-        pdf.ln(2)
+        pdf.ln(3)
 
         # Info complementar
         pdf.set_font(FONT_BODY, "", SIZE_TINY)
@@ -357,9 +391,9 @@ class ConsolidadorPDFBuilder:
         if info_parts:
             pdf.cell(CONTENT_WIDTH, 4, sanitize_text("  |  ".join(info_parts)),
                      align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
+        pdf.ln(4)
 
-        # Grafico donut + Bullets lado a lado
+        # --- Grafico donut + Bullets lado a lado dentro de um card ---
         dist_tipo = {}
         for a in inst.ativos:
             t = a.tipo
@@ -372,30 +406,33 @@ class ConsolidadorPDFBuilder:
             _chart_donut_tipos(dist_tipo, sanitize_text(f"Composicao - {inst.nome}"))
         )
 
-        y_before = pdf.get_y()
+        # Card container para grafico + bullets
+        card_y = pdf.get_y()
+        card_h = 62
+        _card_box(pdf, MARGIN_LEFT, card_y, CONTENT_WIDTH, card_h, r=4)
 
         if chart_path:
             try:
-                pdf.image(chart_path, x=MARGIN_LEFT, y=y_before, w=88)
+                pdf.image(chart_path, x=MARGIN_LEFT + 2, y=card_y + 2, w=84)
             except Exception:
                 pass
 
-        # Bullets na coluna direita
-        pdf.set_xy(MARGIN_LEFT + 91, y_before)
-        self._render_bullets_fortes_fracos(pdf, inst, x_start=MARGIN_LEFT + 91, width=CONTENT_WIDTH - 91)
+        # Bullets na coluna direita (dentro do card)
+        pdf.set_xy(MARGIN_LEFT + 90, card_y + 3)
+        self._render_bullets_fortes_fracos(pdf, inst, x_start=MARGIN_LEFT + 90,
+                                           width=CONTENT_WIDTH - 92, max_y=card_y + card_h - 2)
 
-        # Avanca Y para depois do grafico (sem sobreposicao)
-        chart_bottom = y_before + 58
-        bullets_bottom = pdf.get_y()
-        pdf.set_y(max(chart_bottom, bullets_bottom) + 4)
+        # Avanca APOS o card inteiro (sem sobreposicao)
+        pdf.set_y(card_y + card_h + 4)
 
-        # Tabela de ativos da instituicao
+        # Tabela de ativos
         if inst.ativos:
             check_space(pdf, 25)
-            self._render_section_label(pdf, "ATIVOS")
+            self._render_sub_label(pdf, "ATIVOS DA CARTEIRA")
             self._render_asset_table(pdf, inst.ativos, show_inst=False)
 
-    def _render_bullets_fortes_fracos(self, pdf, inst: InstitutionData, x_start: float, width: float):
+    def _render_bullets_fortes_fracos(self, pdf, inst: InstitutionData,
+                                      x_start: float, width: float, max_y: float = 280):
         """Bullet points de pontos fortes e fracos."""
         fortes = []
         fracos = []
@@ -404,32 +441,27 @@ class ConsolidadorPDFBuilder:
         ativos_positivos = [a for a in inst.ativos if a.rent_ano > 0]
         ativos_negativos = [a for a in inst.ativos if a.rent_ano < 0]
 
-        # Diversificacao
         tipos_unicos = set(a.tipo for a in inst.ativos)
         if len(tipos_unicos) >= 3:
             fortes.append(sanitize_text("Boa diversificacao entre tipos de ativos"))
         elif len(tipos_unicos) == 1:
             fracos.append(sanitize_text(f"Concentracao total em {list(tipos_unicos)[0]}"))
 
-        # Rentabilidade geral
         if inst.rent_carteira_ano > 2:
             fortes.append(sanitize_text(f"Rentabilidade anual positiva ({_fmt_pct(inst.rent_carteira_ano)})"))
         elif inst.rent_carteira_ano < 0:
             fracos.append(sanitize_text(f"Rentabilidade anual negativa ({_fmt_pct(inst.rent_carteira_ano)})"))
 
-        # Melhor ativo
         if ativos_positivos:
             best = max(ativos_positivos, key=lambda a: a.rent_ano)
             nome = best.ticker or best.nome[:20]
             fortes.append(sanitize_text(f"Destaque: {nome} ({_fmt_pct(best.rent_ano)} ano)"))
 
-        # Pior ativo
         if ativos_negativos:
             worst = min(ativos_negativos, key=lambda a: a.rent_ano)
             nome = worst.ticker or worst.nome[:20]
             fracos.append(sanitize_text(f"Atencao: {nome} ({_fmt_pct(worst.rent_ano)} ano)"))
 
-        # Concentracao
         if inst.ativos:
             maior = max(inst.ativos, key=lambda a: a.saldo_bruto)
             pct_maior = (maior.saldo_bruto / total * 100)
@@ -438,51 +470,45 @@ class ConsolidadorPDFBuilder:
             elif pct_maior < 30 and len(inst.ativos) >= 3:
                 fortes.append(sanitize_text("Patrimonio bem distribuido entre ativos"))
 
-        # CDI
-        if inst.cdi_ano > 100:
-            fortes.append("Acima de 100% do CDI no ano")
-        elif inst.cdi_ano and inst.cdi_ano < 80:
-            fracos.append("Abaixo de 80% do CDI no ano")
-
-        # Numero de ativos
         if inst.num_ativos >= 5:
             fortes.append(f"{inst.num_ativos} ativos na carteira")
 
-        # Renderiza PONTOS FORTES
-        pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
+        # --- Pontos Fortes ---
+        pdf.set_font(FONT_BODY, "B", SIZE_TINY + 0.5)
         pdf.set_text_color(*VERDE_ESCURO)
         pdf.set_x(x_start)
-        pdf.cell(width, 5, "PONTOS FORTES", new_x="LEFT", new_y="NEXT")
+        pdf.cell(width, 4.5, "PONTOS FORTES", new_x="LEFT", new_y="NEXT")
+        pdf.ln(0.5)
 
         pdf.set_font(FONT_BODY, "", SIZE_TINY)
-        pdf.set_text_color(*TEXTO)
         for bullet in (fortes or ["Nenhum ponto forte identificado"]):
+            if pdf.get_y() > max_y - 4:
+                break
             pdf.set_x(x_start)
-            pdf.set_font(FONT_BODY, "B", SIZE_TINY)
             pdf.set_text_color(*VERDE_ESCURO)
-            pdf.cell(4, 3.8, "+")
-            pdf.set_font(FONT_BODY, "", SIZE_TINY)
+            pdf.cell(3.5, 3.5, "+")
             pdf.set_text_color(*TEXTO)
-            pdf.multi_cell(width - 4, 3.8, sanitize_text(f" {bullet}"))
+            pdf.multi_cell(width - 4, 3.5, sanitize_text(f" {bullet}"))
 
-        pdf.ln(2)
+        pdf.ln(1.5)
 
-        # Renderiza PONTOS DE ATENCAO
-        pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
-        pdf.set_text_color(*VERMELHO)
-        pdf.set_x(x_start)
-        pdf.cell(width, 5, sanitize_text("PONTOS DE ATENCAO"), new_x="LEFT", new_y="NEXT")
-
-        pdf.set_font(FONT_BODY, "", SIZE_TINY)
-        pdf.set_text_color(*TEXTO)
-        for bullet in (fracos or [sanitize_text("Nenhum ponto critico identificado")]):
-            pdf.set_x(x_start)
-            pdf.set_font(FONT_BODY, "B", SIZE_TINY)
+        # --- Pontos de Atencao ---
+        if pdf.get_y() <= max_y - 8:
+            pdf.set_font(FONT_BODY, "B", SIZE_TINY + 0.5)
             pdf.set_text_color(*VERMELHO)
-            pdf.cell(4, 3.8, "-")
+            pdf.set_x(x_start)
+            pdf.cell(width, 4.5, sanitize_text("PONTOS DE ATENCAO"), new_x="LEFT", new_y="NEXT")
+            pdf.ln(0.5)
+
             pdf.set_font(FONT_BODY, "", SIZE_TINY)
-            pdf.set_text_color(*TEXTO)
-            pdf.multi_cell(width - 4, 3.8, sanitize_text(f" {bullet}"))
+            for bullet in (fracos or [sanitize_text("Nenhum ponto critico identificado")]):
+                if pdf.get_y() > max_y - 4:
+                    break
+                pdf.set_x(x_start)
+                pdf.set_text_color(*VERMELHO)
+                pdf.cell(3.5, 3.5, "-")
+                pdf.set_text_color(*TEXTO)
+                pdf.multi_cell(width - 4, 3.5, sanitize_text(f" {bullet}"))
 
     # ----------------------------------------------------------
     # CONSOLIDADO TOTAL
@@ -491,8 +517,7 @@ class ConsolidadorPDFBuilder:
         pdf.add_page()
         self._page_bg(pdf)
         pdf.set_text_color(*TEXTO)
-        _rounded_bar(pdf, sanitize_text("VISAO CONSOLIDADA TOTAL"))
-        pdf.ln(1)
+        _section_bar(pdf, sanitize_text("VISAO CONSOLIDADA TOTAL"))
 
         # KPIs
         self._render_kpi_row(pdf, [
@@ -502,9 +527,9 @@ class ConsolidadorPDFBuilder:
             ("Rent. Ano", _fmt_pct(self.cp.rent_ano_ponderada()),
              VERDE_ESCURO if self.cp.rent_ano_ponderada() >= 0 else VERMELHO),
         ])
-        pdf.ln(4)
+        pdf.ln(5)
 
-        # Graficos lado a lado
+        # Graficos lado a lado dentro de cards
         dist_tipo = self.cp.distribuicao_por_tipo()
         chart_tipos = self._save_chart(
             _chart_donut_tipos(dist_tipo, sanitize_text("Composicao por Tipo de Ativo"))
@@ -516,30 +541,36 @@ class ConsolidadorPDFBuilder:
         ) if self.cp.num_instituicoes > 1 else ""
 
         y_chart = pdf.get_y()
-        chart_h = 55
+        chart_h = 52
+
+        # Card esquerdo (donut)
         if chart_tipos:
+            _card_box(pdf, MARGIN_LEFT, y_chart, 88, chart_h, r=4)
             try:
-                pdf.image(chart_tipos, x=MARGIN_LEFT, y=y_chart, w=87)
+                pdf.image(chart_tipos, x=MARGIN_LEFT + 2, y=y_chart + 2, w=84)
             except Exception:
                 pass
+
+        # Card direito (barras)
         if chart_inst:
+            _card_box(pdf, MARGIN_LEFT + 92, y_chart, 88, chart_h, r=4)
             try:
-                pdf.image(chart_inst, x=MARGIN_LEFT + 92, y=y_chart, w=87)
+                pdf.image(chart_inst, x=MARGIN_LEFT + 94, y=y_chart + 2, w=84)
             except Exception:
                 pass
 
-        # Avanca apos graficos sem sobreposicao
-        pdf.set_y(y_chart + chart_h + 2)
+        # Avanca APOS os graficos
+        pdf.set_y(y_chart + chart_h + 5)
 
-        # Bullets consolidados
+        # Diagnostico
         check_space(pdf, 40)
-        self._render_section_label(pdf, sanitize_text("DIAGNOSTICO DA CARTEIRA"))
+        self._render_sub_label(pdf, sanitize_text("DIAGNOSTICO DA CARTEIRA"))
         pdf.ln(1)
 
         bullets = self._generate_consolidated_bullets()
         pdf.set_font(FONT_BODY, "", SIZE_SMALL)
         for emoji_type, text in bullets:
-            check_space(pdf, 6)
+            check_space(pdf, 7)
             if emoji_type == "green":
                 pdf.set_text_color(*VERDE_ESCURO)
                 prefix = "+"
@@ -550,33 +581,33 @@ class ConsolidadorPDFBuilder:
                 pdf.set_text_color(*AZUL)
                 prefix = ">"
             pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
-            pdf.cell(4, 5, prefix)
+            pdf.cell(5, 5, prefix)
             pdf.set_font(FONT_BODY, "", SIZE_SMALL)
             pdf.set_text_color(*TEXTO)
-            pdf.multi_cell(CONTENT_WIDTH - 4, 5, sanitize_text(text))
+            pdf.multi_cell(CONTENT_WIDTH - 5, 5, sanitize_text(text))
 
         # Alocacao por tipo - barras visuais
         pdf.ln(4)
         check_space(pdf, 30)
-        self._render_section_label(pdf, sanitize_text("ALOCACAO POR TIPO"))
+        self._render_sub_label(pdf, sanitize_text("ALOCACAO POR TIPO"))
         pdf.ln(2)
         for tipo, d in dist_tipo.items():
-            check_space(pdf, 8)
+            check_space(pdf, 9)
             pct = d["alocacao"]
             pdf.set_font(FONT_BODY, "B", SIZE_TINY)
             pdf.set_text_color(*TEXTO)
             label = f"{sanitize_text(tipo)}  {pct:.1f}%  ({_fmt_brl(d['saldo_bruto'])})"
             pdf.cell(CONTENT_WIDTH, 4, label, new_x="LMARGIN", new_y="NEXT")
-            # Barra com fundo e cor
+            # Barra arredondada
             bar_y = pdf.get_y()
             pdf.set_fill_color(220, 220, 210)
-            _safe_rect(pdf,MARGIN_LEFT, bar_y, CONTENT_WIDTH, 3.5, 1.5, style="F")
-            bar_w = max(3, pct / 100 * CONTENT_WIDTH)
+            _rrect(pdf, MARGIN_LEFT, bar_y, CONTENT_WIDTH, 4, 2, "F")
+            bar_w = max(4, pct / 100 * CONTENT_WIDTH)
             c_idx = list(dist_tipo.keys()).index(tipo)
             hx = CHART_PALETTE[c_idx % len(CHART_PALETTE)]
             pdf.set_fill_color(int(hx[1:3], 16), int(hx[3:5], 16), int(hx[5:7], 16))
-            _safe_rect(pdf,MARGIN_LEFT, bar_y, bar_w, 3.5, 1.5, style="F")
-            pdf.ln(5.5)
+            _rrect(pdf, MARGIN_LEFT, bar_y, bar_w, 4, 2, "F")
+            pdf.ln(6)
 
     def _generate_consolidated_bullets(self):
         """Gera bullets de diagnostico consolidado."""
@@ -649,10 +680,15 @@ class ConsolidadorPDFBuilder:
         pdf.add_page()
         self._page_bg(pdf)
         pdf.set_text_color(*TEXTO)
-        _rounded_bar(pdf, sanitize_text("COMPARATIVO ENTRE INSTITUICOES"))
-        pdf.ln(2)
+        _section_bar(pdf, sanitize_text("COMPARATIVO ENTRE INSTITUICOES"))
+        pdf.ln(1)
 
         dist = self.cp.distribuicao_por_instituicao()
+
+        # Card para tabela
+        table_h = 7 + len(dist) * 5.5 + 7
+        _card_box(pdf, MARGIN_LEFT, pdf.get_y(), CONTENT_WIDTH, table_h, r=4)
+        pdf.ln(1)
 
         # Tabela comparativa
         cols = [
@@ -667,18 +703,18 @@ class ConsolidadorPDFBuilder:
         # Header arredondado
         y_h = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        _safe_rect(pdf,MARGIN_LEFT, y_h, CONTENT_WIDTH, 6, 1.5, style="F")
+        _rrect(pdf, MARGIN_LEFT + 1, y_h, CONTENT_WIDTH - 2, 6, 2, "F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
-        pdf.set_xy(MARGIN_LEFT, y_h)
+        pdf.set_xy(MARGIN_LEFT + 1, y_h)
         for name, w in cols:
             pdf.cell(w, 6, sanitize_text(name), border=0, align="C")
-        pdf.set_y(y_h + 6)
+        pdf.set_y(y_h + 6.5)
 
         # Rows
         pdf.set_font(FONT_BODY, "", SIZE_TINY)
         for i, (nome, d) in enumerate(dist.items()):
-            bg = FUNDO_CLARO if i % 2 == 0 else BRANCO
+            bg = FUNDO_CLARO if i % 2 == 0 else CARD_BG
             pdf.set_fill_color(*bg)
             pdf.set_text_color(*TEXTO)
             pdf.cell(cols[0][1], 5.5, sanitize_text(nome), border=0, fill=True)
@@ -697,10 +733,10 @@ class ConsolidadorPDFBuilder:
         # Total
         y_t = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        _safe_rect(pdf,MARGIN_LEFT, y_t, CONTENT_WIDTH, 6, 1.5, style="F")
+        _rrect(pdf, MARGIN_LEFT + 1, y_t, CONTENT_WIDTH - 2, 6, 2, "F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
-        pdf.set_xy(MARGIN_LEFT, y_t)
+        pdf.set_xy(MARGIN_LEFT + 1, y_t)
         pdf.cell(cols[0][1], 6, "TOTAL", border=0)
         pdf.cell(cols[1][1], 6, _fmt_brl(self.cp.patrimonio_bruto_total), border=0, align="R")
         pdf.cell(cols[2][1], 6, str(self.cp.num_ativos_total), border=0, align="C")
@@ -708,30 +744,32 @@ class ConsolidadorPDFBuilder:
         pdf.cell(cols[4][1], 6, _fmt_pct(self.cp.rent_mes_ponderada()), border=0, align="C")
         pdf.cell(cols[5][1], 6, _fmt_pct(self.cp.rent_ano_ponderada()), border=0, align="C")
         pdf.cell(cols[6][1], 6, "", border=0, align="C")
-        pdf.set_y(y_t + 7)
+        pdf.set_y(y_t + 8)
         pdf.set_text_color(*TEXTO)
 
-        # Grafico de rentabilidade comparativa
-        pdf.ln(5)
+        # Grafico de rentabilidade comparativa dentro de card
+        pdf.ln(4)
         chart_rent = self._save_chart(_chart_rent_comparativo(dist))
         if chart_rent:
-            check_space(pdf, 55)
+            check_space(pdf, 58)
             y_img = pdf.get_y()
+            chart_card_h = 52
+            _card_box(pdf, MARGIN_LEFT + 15, y_img, CONTENT_WIDTH - 30, chart_card_h, r=4)
             try:
-                pdf.image(chart_rent, x=MARGIN_LEFT + 15, y=y_img, w=CONTENT_WIDTH - 30)
-                pdf.set_y(y_img + 50)
+                pdf.image(chart_rent, x=MARGIN_LEFT + 17, y=y_img + 2, w=CONTENT_WIDTH - 34)
+                pdf.set_y(y_img + chart_card_h + 4)
             except Exception:
-                pass
+                pdf.set_y(y_img + 4)
 
         # Ranking risco
-        pdf.ln(4)
+        pdf.ln(3)
         check_space(pdf, 35)
-        self._render_section_label(pdf, sanitize_text("EXPOSICAO A RISCO POR INSTITUICAO"))
+        self._render_sub_label(pdf, sanitize_text("EXPOSICAO A RISCO POR INSTITUICAO"))
         pdf.ln(2)
 
         ranking = self.cp.ranking_risco_por_instituicao()
         for r in ranking:
-            check_space(pdf, 9)
+            check_space(pdf, 10)
             pct = r["pct_risco"]
             if pct > 30:
                 color = VERMELHO
@@ -750,27 +788,26 @@ class ConsolidadorPDFBuilder:
             bar_x = pdf.get_x()
             bar_y = pdf.get_y() + 0.5
             bar_max = 80
-            bar_w = max(3, pct / 100 * bar_max)
+            bar_w = max(4, pct / 100 * bar_max)
             pdf.set_fill_color(220, 220, 210)
-            _safe_rect(pdf,bar_x, bar_y, bar_max, 4, 2, style="F")
+            _rrect(pdf, bar_x, bar_y, bar_max, 4, 2, "F")
             pdf.set_fill_color(*color)
-            _safe_rect(pdf,bar_x, bar_y, bar_w, 4, 2, style="F")
+            _rrect(pdf, bar_x, bar_y, bar_w, 4, 2, "F")
 
             pdf.set_x(bar_x + bar_max + 3)
             pdf.set_font(FONT_BODY, "B", SIZE_TINY)
             pdf.set_text_color(*color)
             pdf.cell(40, 5, f"{pct:.1f}% - {indicator}")
-            pdf.ln(7)
+            pdf.ln(8)
 
     # ----------------------------------------------------------
-    # PAGINA TECNICA - TODOS OS ATIVOS
+    # PAGINA TECNICA
     # ----------------------------------------------------------
     def _add_pagina_tecnica(self, pdf):
         pdf.add_page()
         self._page_bg(pdf)
         pdf.set_text_color(*TEXTO)
-        _rounded_bar(pdf, sanitize_text("VISAO TECNICA - TODOS OS ATIVOS CONSOLIDADOS"))
-        pdf.ln(2)
+        _section_bar(pdf, sanitize_text("VISAO TECNICA - TODOS OS ATIVOS CONSOLIDADOS"))
 
         pdf.set_font(FONT_BODY, "I", SIZE_TINY)
         pdf.set_text_color(*CINZA_MEDIO)
@@ -780,7 +817,7 @@ class ConsolidadorPDFBuilder:
             f"Ordenado por saldo decrescente"
         ), align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*TEXTO)
-        pdf.ln(1)
+        pdf.ln(2)
 
         all_ativos = sorted(self.cp.todos_ativos, key=lambda a: a.saldo_bruto, reverse=True)
         self._render_asset_table(pdf, all_ativos, show_inst=True)
@@ -800,40 +837,43 @@ class ConsolidadorPDFBuilder:
     # Shared renderers
     # ----------------------------------------------------------
     def _render_kpi_row(self, pdf, kpis: list):
-        """Renderiza linha de KPI cards arredondados."""
+        """Renderiza linha de KPI cards arredondados com sombra."""
         n = len(kpis)
-        card_w = CONTENT_WIDTH / n
+        gap = 3
+        card_w = (CONTENT_WIDTH - gap * (n - 1)) / n
         y_start = pdf.get_y()
 
         for i, (label, value, color) in enumerate(kpis):
-            x = MARGIN_LEFT + i * card_w + 1
-            w = card_w - 2
-            # Card arredondado
+            x = MARGIN_LEFT + i * (card_w + gap)
+            # Sombra
+            pdf.set_fill_color(*CARD_SHADOW)
+            _rrect(pdf, x + 0.5, y_start + 0.5, card_w, 18, 3, "F")
+            # Card colorido
             pdf.set_fill_color(*color)
-            _safe_rect(pdf,x, y_start, w, 16, 2.5, style="F")
+            _rrect(pdf, x, y_start, card_w, 18, 3, "F")
             # Valor
-            pdf.set_xy(x, y_start + 1.5)
+            pdf.set_xy(x, y_start + 2)
             pdf.set_font(FONT_BODY, "B", 11 if len(value) < 18 else 9)
             pdf.set_text_color(*BRANCO)
-            pdf.cell(w, 7, sanitize_text(value), align="C")
+            pdf.cell(card_w, 7, sanitize_text(value), align="C")
             # Label
-            pdf.set_xy(x, y_start + 9)
-            pdf.set_font(FONT_BODY, "", 6)
+            pdf.set_xy(x, y_start + 10)
+            pdf.set_font(FONT_BODY, "", 6.5)
             pdf.set_text_color(220, 235, 230)
-            pdf.cell(w, 5, sanitize_text(label), align="C")
+            pdf.cell(card_w, 5, sanitize_text(label), align="C")
 
-        pdf.set_y(y_start + 18)
+        pdf.set_y(y_start + 21)
         pdf.set_text_color(*TEXTO)
 
-    def _render_section_label(self, pdf, title: str):
-        """Mini section label com linha fina."""
+    def _render_sub_label(self, pdf, title: str):
+        """Sub-section label com linha decorativa."""
+        y_line = pdf.get_y()
+        pdf.set_draw_color(*VERDE_ESCURO)
+        pdf.set_line_width(0.4)
+        pdf.line(MARGIN_LEFT, y_line, MARGIN_LEFT + CONTENT_WIDTH, y_line)
+        pdf.set_y(y_line + 1.5)
         pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
         pdf.set_text_color(*VERDE_ESCURO)
-        pdf.set_draw_color(*VERDE_ESCURO)
-        pdf.set_line_width(0.3)
-        y_line = pdf.get_y()
-        pdf.line(MARGIN_LEFT, y_line, MARGIN_LEFT + CONTENT_WIDTH, y_line)
-        pdf.set_y(y_line + 1)
         pdf.cell(CONTENT_WIDTH, 5, sanitize_text(title), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*TEXTO)
         pdf.ln(1)
@@ -862,19 +902,19 @@ class ConsolidadorPDFBuilder:
         # Header arredondado
         y_h = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        _safe_rect(pdf,MARGIN_LEFT, y_h, CONTENT_WIDTH, 5.5, 1.5, style="F")
+        _rrect(pdf, MARGIN_LEFT, y_h, CONTENT_WIDTH, 6, 2, "F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
         pdf.set_xy(MARGIN_LEFT, y_h)
         for name, w in cols:
-            pdf.cell(w, 5.5, sanitize_text(name), border=0, align="C")
-        pdf.set_y(y_h + 5.5)
+            pdf.cell(w, 6, sanitize_text(name), border=0, align="C")
+        pdf.set_y(y_h + 6)
 
         # Rows
         pdf.set_font(FONT_BODY, "", SIZE_TINY)
         for i, a in enumerate(ativos):
             check_space(pdf, 6)
-            bg = FUNDO_CLARO if i % 2 == 0 else BRANCO
+            bg = FUNDO_CLARO if i % 2 == 0 else CARD_BG
             pdf.set_fill_color(*bg)
 
             nome = a.ticker if a.ticker else a.nome
