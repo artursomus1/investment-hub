@@ -73,11 +73,16 @@ def _tmp_path(suffix=".png") -> str:
     return tempfile.mktemp(suffix=suffix)
 
 
+def _safe_rect(pdf, x, y, w, h, r=0, style="F"):
+    """Draws a rect (ignores radius since rounded_rect may not exist)."""
+    pdf.rect(x, y, w, h, style)
+
+
 def _rounded_bar(pdf, title: str, color=VERDE_ESCURO):
-    """Barra de titulo arredondada e centralizada."""
+    """Barra de titulo centralizada."""
     y = pdf.get_y()
     pdf.set_fill_color(*color)
-    pdf.rounded_rect(MARGIN_LEFT, y, CONTENT_WIDTH, 7, 2, style="F")
+    _safe_rect(pdf, MARGIN_LEFT, y, CONTENT_WIDTH, 7, "F")
     pdf.set_text_color(*BRANCO)
     pdf.set_font(FONT_BODY, "B", SIZE_SMALL)
     pdf.set_xy(MARGIN_LEFT, y)
@@ -565,12 +570,12 @@ class ConsolidadorPDFBuilder:
             # Barra com fundo e cor
             bar_y = pdf.get_y()
             pdf.set_fill_color(220, 220, 210)
-            pdf.rounded_rect(MARGIN_LEFT, bar_y, CONTENT_WIDTH, 3.5, 1.5, style="F")
+            _safe_rect(pdf,MARGIN_LEFT, bar_y, CONTENT_WIDTH, 3.5, 1.5, style="F")
             bar_w = max(3, pct / 100 * CONTENT_WIDTH)
             c_idx = list(dist_tipo.keys()).index(tipo)
             hx = CHART_PALETTE[c_idx % len(CHART_PALETTE)]
             pdf.set_fill_color(int(hx[1:3], 16), int(hx[3:5], 16), int(hx[5:7], 16))
-            pdf.rounded_rect(MARGIN_LEFT, bar_y, bar_w, 3.5, 1.5, style="F")
+            _safe_rect(pdf,MARGIN_LEFT, bar_y, bar_w, 3.5, 1.5, style="F")
             pdf.ln(5.5)
 
     def _generate_consolidated_bullets(self):
@@ -662,7 +667,7 @@ class ConsolidadorPDFBuilder:
         # Header arredondado
         y_h = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        pdf.rounded_rect(MARGIN_LEFT, y_h, CONTENT_WIDTH, 6, 1.5, style="F")
+        _safe_rect(pdf,MARGIN_LEFT, y_h, CONTENT_WIDTH, 6, 1.5, style="F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
         pdf.set_xy(MARGIN_LEFT, y_h)
@@ -692,7 +697,7 @@ class ConsolidadorPDFBuilder:
         # Total
         y_t = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        pdf.rounded_rect(MARGIN_LEFT, y_t, CONTENT_WIDTH, 6, 1.5, style="F")
+        _safe_rect(pdf,MARGIN_LEFT, y_t, CONTENT_WIDTH, 6, 1.5, style="F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
         pdf.set_xy(MARGIN_LEFT, y_t)
@@ -747,9 +752,9 @@ class ConsolidadorPDFBuilder:
             bar_max = 80
             bar_w = max(3, pct / 100 * bar_max)
             pdf.set_fill_color(220, 220, 210)
-            pdf.rounded_rect(bar_x, bar_y, bar_max, 4, 2, style="F")
+            _safe_rect(pdf,bar_x, bar_y, bar_max, 4, 2, style="F")
             pdf.set_fill_color(*color)
-            pdf.rounded_rect(bar_x, bar_y, bar_w, 4, 2, style="F")
+            _safe_rect(pdf,bar_x, bar_y, bar_w, 4, 2, style="F")
 
             pdf.set_x(bar_x + bar_max + 3)
             pdf.set_font(FONT_BODY, "B", SIZE_TINY)
@@ -805,7 +810,7 @@ class ConsolidadorPDFBuilder:
             w = card_w - 2
             # Card arredondado
             pdf.set_fill_color(*color)
-            pdf.rounded_rect(x, y_start, w, 16, 2.5, style="F")
+            _safe_rect(pdf,x, y_start, w, 16, 2.5, style="F")
             # Valor
             pdf.set_xy(x, y_start + 1.5)
             pdf.set_font(FONT_BODY, "B", 11 if len(value) < 18 else 9)
@@ -857,7 +862,7 @@ class ConsolidadorPDFBuilder:
         # Header arredondado
         y_h = pdf.get_y()
         pdf.set_fill_color(*VERDE_ESCURO)
-        pdf.rounded_rect(MARGIN_LEFT, y_h, CONTENT_WIDTH, 5.5, 1.5, style="F")
+        _safe_rect(pdf,MARGIN_LEFT, y_h, CONTENT_WIDTH, 5.5, 1.5, style="F")
         pdf.set_text_color(*BRANCO)
         pdf.set_font(FONT_BODY, "B", SIZE_TINY)
         pdf.set_xy(MARGIN_LEFT, y_h)
